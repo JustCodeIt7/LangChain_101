@@ -161,3 +161,4 @@ cython_debug/
 #/.idea/
 !/02-Data-Connections/chroma/
 !/02-Data-Connections/faiss/
+02-Data-Connections/chroma/chroma.sqlite3
