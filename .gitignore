@@ -162,3 +162,4 @@ cython_debug/
 !/02-Data-Connections/chroma/
 !/02-Data-Connections/faiss/
 02-Data-Connections/chroma/chroma.sqlite3
+.aider*
