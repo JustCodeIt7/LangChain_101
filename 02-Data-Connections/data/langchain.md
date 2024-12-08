@@ -1,493 +1,169 @@
-Title: Build a Retrieval Augmented Generation (RAG) App: Part 1 | 🦜️🔗 LangChain
+Title: Chat models | 🦜️🔗 LangChain
 
-URL Source: https://python.langchain.com/docs/tutorials/rag/
+URL Source: https://python.langchain.com/docs/concepts/chat_models/
 
 Markdown Content:
-One of the most powerful applications enabled by LLMs is sophisticated question-answering (Q&A) chatbots. These are applications that can answer questions about specific source information. These applications use a technique known as Retrieval Augmented Generation, or [RAG](https://python.langchain.com/docs/concepts/rag/).
-
-This is a multi-part tutorial:
-
-*   [Part 1](https://python.langchain.com/docs/tutorials/rag/) (this guide) introduces RAG and walks through a minimal implementation.
-*   [Part 2](https://python.langchain.com/docs/tutorials/qa_chat_history/) extends the implementation to accommodate conversation-style interactions and multi-step retrieval processes.
-
-This tutorial will show how to build a simple Q&A application over a text data source. Along the way we’ll go over a typical Q&A architecture and highlight additional resources for more advanced Q&A techniques. We’ll also see how LangSmith can help us trace and understand our application. LangSmith will become increasingly helpful as our application grows in complexity.
-
-If you're already familiar with basic retrieval, you might also be interested in this [high-level overview of different retrieval techinques](https://python.langchain.com/docs/concepts/retrieval/).
-
-**Note**: Here we focus on Q&A for unstructured data. If you are interested for RAG over structured data, check out our tutorial on doing [question/answering over SQL data](https://python.langchain.com/docs/tutorials/sql_qa/).
-
-Overview[​](https://python.langchain.com/docs/tutorials/rag/#overview "Direct link to Overview")
-------------------------------------------------------------------------------------------------
-
-A typical RAG application has two main components:
-
-**Indexing**: a pipeline for ingesting data from a source and indexing it. _This usually happens offline._
-
-**Retrieval and generation**: the actual RAG chain, which takes the user query at run time and retrieves the relevant data from the index, then passes that to the model.
-
-Note: the indexing portion of this tutorial will largely follow the [semantic search tutorial](https://python.langchain.com/docs/tutorials/retrievers/).
-
-The most common full sequence from raw data to answer looks like:
-
-### Indexing[​](https://python.langchain.com/docs/tutorials/rag/#indexing "Direct link to Indexing")
-
-1.  **Load**: First we need to load our data. This is done with [Document Loaders](https://python.langchain.com/docs/concepts/document_loaders/).
-2.  **Split**: [Text splitters](https://python.langchain.com/docs/concepts/text_splitters/) break large `Documents` into smaller chunks. This is useful both for indexing data and passing it into a model, as large chunks are harder to search over and won't fit in a model's finite context window.
-3.  **Store**: We need somewhere to store and index our splits, so that they can be searched over later. This is often done using a [VectorStore](https://python.langchain.com/docs/concepts/vectorstores/) and [Embeddings](https://python.langchain.com/docs/concepts/embedding_models/) model.
-
-![Image 11: index_diagram](https://python.langchain.com/assets/images/rag_indexing-8160f90a90a33253d0154659cf7d453f.png)
-
-### Retrieval and generation[​](https://python.langchain.com/docs/tutorials/rag/#retrieval-and-generation "Direct link to Retrieval and generation")
-
-4.  **Retrieve**: Given a user input, relevant splits are retrieved from storage using a [Retriever](https://python.langchain.com/docs/concepts/retrievers/).
-5.  **Generate**: A [ChatModel](https://python.langchain.com/docs/concepts/chat_models/) / [LLM](https://python.langchain.com/docs/concepts/text_llms/) produces an answer using a prompt that includes both the question with the retrieved data
-
-![Image 12: retrieval_diagram](https://python.langchain.com/assets/images/rag_retrieval_generation-1046a4668d6bb08786ef73c56d4f228a.png)
-
-Once we've indexed our data, we will use [LangGraph](https://langchain-ai.github.io/langgraph/) as our orchestration framework to implement the retrieval and generation steps.
-
-Setup[​](https://python.langchain.com/docs/tutorials/rag/#setup "Direct link to Setup")
----------------------------------------------------------------------------------------
-
-### Jupyter Notebook[​](https://python.langchain.com/docs/tutorials/rag/#jupyter-notebook "Direct link to Jupyter Notebook")
-
-This and other tutorials are perhaps most conveniently run in a [Jupyter notebooks](https://jupyter.org/). Going through guides in an interactive environment is a great way to better understand them. See [here](https://jupyter.org/install) for instructions on how to install.
-
-### Installation[​](https://python.langchain.com/docs/tutorials/rag/#installation "Direct link to Installation")
-
-This tutorial requires these langchain dependencies:
-
-*   Pip
-*   Conda
-
-```
-%pip install --quiet --upgrade langchain-text-splitters langchain-community
-```
-
-For more details, see our [Installation guide](https://python.langchain.com/docs/how_to/installation/).
-
-### LangSmith[​](https://python.langchain.com/docs/tutorials/rag/#langsmith "Direct link to LangSmith")
-
-Many of the applications you build with LangChain will contain multiple steps with multiple invocations of LLM calls. As these applications get more complex, it becomes crucial to be able to inspect what exactly is going on inside your chain or agent. The best way to do this is with [LangSmith](https://smith.langchain.com/).
-
-After you sign up at the link above, make sure to set your environment variables to start logging traces:
-
-```
-export LANGCHAIN_TRACING_V2="true"export LANGCHAIN_API_KEY="..."
-```
-
-Or, if in a notebook, you can set them with:
-
-```
-import getpassimport osos.environ["LANGCHAIN_TRACING_V2"] = "true"os.environ["LANGCHAIN_API_KEY"] = getpass.getpass()
-```
-
-Components[​](https://python.langchain.com/docs/tutorials/rag/#components "Direct link to Components")
-------------------------------------------------------------------------------------------------------
-
-We will need to select three components from LangChain's suite of integrations.
-
-A [chat model](https://python.langchain.com/docs/integrations/chat/):
-
-*   OpenAI
-*   Anthropic
-*   Azure
-*   Google
-*   AWS
-*   Cohere
-*   NVIDIA
-*   FireworksAI
-*   Groq
-*   MistralAI
-*   TogetherAI
-*   Databricks
-
-```
-pip install -qU langchain-openai
-```
-
-```
-import getpassimport osos.environ["OPENAI_API_KEY"] = getpass.getpass()from langchain_openai import ChatOpenAIllm = ChatOpenAI(model="gpt-4o-mini")
-```
-
-An [embedding model](https://python.langchain.com/docs/integrations/text_embedding/):
-
-*   OpenAI
-*   Azure
-*   Google
-*   AWS
-*   HuggingFace
-*   Ollama
-*   Cohere
-*   MistralAI
-*   Nomic
-*   NVIDIA
-*   Fake
-
-```
-pip install -qU langchain-openai
-```
-
-```
-import getpassos.environ["OPENAI_API_KEY"] = getpass.getpass()from langchain_openai import OpenAIEmbeddingsembeddings = OpenAIEmbeddings(model="text-embedding-3-large")
-```
-
-And a [vector store](https://python.langchain.com/docs/integrations/vectorstores/):
-
-*   In-memory
-*   AstraDB
-*   Chroma
-*   FAISS
-*   Milvus
-*   MongoDB
-*   PGVector
-*   Pinecone
-*   Qdrant
-
-```
-pip install -qU langchain-core
-```
-
-```
-from langchain_core.vectorstores import InMemoryVectorStorevector_store = InMemoryVectorStore(embeddings)
-```
-
-Preview[​](https://python.langchain.com/docs/tutorials/rag/#preview "Direct link to Preview")
----------------------------------------------------------------------------------------------
-
-In this guide we’ll build an app that answers questions about the website's content. The specific website we will use is the [LLM Powered Autonomous Agents](https://lilianweng.github.io/posts/2023-06-23-agent/) blog post by Lilian Weng, which allows us to ask questions about the contents of the post.
-
-We can create a simple indexing pipeline and RAG chain to do this in ~50 lines of code.
-
-```
-import bs4from langchain import hubfrom langchain_community.document_loaders import WebBaseLoaderfrom langchain_core.documents import Documentfrom langchain_text_splitters import RecursiveCharacterTextSplitterfrom langgraph.graph import START, StateGraphfrom typing_extensions import List, TypedDict# Load and chunk contents of the blogloader = WebBaseLoader(    web_paths=("https://lilianweng.github.io/posts/2023-06-23-agent/",),    bs_kwargs=dict(        parse_only=bs4.SoupStrainer(            class_=("post-content", "post-title", "post-header")        )    ),)docs = loader.load()text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)all_splits = text_splitter.split_documents(docs)# Index chunks_ = vector_store.add_documents(documents=all_splits)# Define prompt for question-answeringprompt = hub.pull("rlm/rag-prompt")# Define state for applicationclass State(TypedDict):    question: str    context: List[Document]    answer: str# Define application stepsdef retrieve(state: State):    retrieved_docs = vector_store.similarity_search(state["question"])    return {"context": retrieved_docs}def generate(state: State):    docs_content = "\n\n".join(doc.page_content for doc in state["context"])    messages = prompt.invoke({"question": state["question"], "context": docs_content})    response = llm.invoke(messages)    return {"answer": response.content}# Compile application and testgraph_builder = StateGraph(State).add_sequence([retrieve, generate])graph_builder.add_edge(START, "retrieve")graph = graph_builder.compile()
-```
-
-```
-response = graph.invoke({"question": "What is Task Decomposition?"})print(response["answer"])
-```
-
-```
-Task Decomposition is the process of breaking down a complicated task into smaller, manageable steps to facilitate easier execution and understanding. Techniques like Chain of Thought (CoT) and Tree of Thoughts (ToT) guide models to think step-by-step, allowing them to explore multiple reasoning possibilities. This method enhances performance on complex tasks and provides insight into the model's thinking process.
-```
-
-Check out the [LangSmith trace](https://smith.langchain.com/public/65030797-7efa-4356-a7bd-b54b3dc70e17/r).
-
-Detailed walkthrough[​](https://python.langchain.com/docs/tutorials/rag/#detailed-walkthrough "Direct link to Detailed walkthrough")
-------------------------------------------------------------------------------------------------------------------------------------
-
-Let’s go through the above code step-by-step to really understand what’s going on.
-
-1\. Indexing[​](https://python.langchain.com/docs/tutorials/rag/#indexing "Direct link to 1. Indexing")
+Overview[​](https://python.langchain.com/docs/concepts/chat_models/#overview "Direct link to Overview")
 -------------------------------------------------------------------------------------------------------
 
-### Loading documents[​](https://python.langchain.com/docs/tutorials/rag/#loading-documents "Direct link to Loading documents")
+Large Language Models (LLMs) are advanced machine learning models that excel in a wide range of language-related tasks such as text generation, translation, summarization, question answering, and more, without needing task-specific fine tuning for every scenario.
 
-We need to first load the blog post contents. We can use [DocumentLoaders](https://python.langchain.com/docs/concepts/document_loaders/) for this, which are objects that load in data from a source and return a list of [Document](https://python.langchain.com/api_reference/core/documents/langchain_core.documents.base.Document.html) objects.
+Modern LLMs are typically accessed through a chat model interface that takes a list of [messages](https://python.langchain.com/docs/concepts/messages/) as input and returns a [message](https://python.langchain.com/docs/concepts/messages/) as output.
 
-In this case we’ll use the [WebBaseLoader](https://python.langchain.com/docs/integrations/document_loaders/web_base/), which uses `urllib` to load HTML from web URLs and `BeautifulSoup` to parse it to text. We can customize the HTML -\> text parsing by passing in parameters into the `BeautifulSoup` parser via `bs_kwargs` (see [BeautifulSoup docs](https://beautiful-soup-4.readthedocs.io/en/latest/#beautifulsoup)). In this case only HTML tags with class “post-content”, “post-title”, or “post-header” are relevant, so we’ll remove all others.
+The newest generation of chat models offer additional capabilities:
 
-```
-import bs4from langchain_community.document_loaders import WebBaseLoader# Only keep post title, headers, and content from the full HTML.bs4_strainer = bs4.SoupStrainer(class_=("post-title", "post-header", "post-content"))loader = WebBaseLoader(    web_paths=("https://lilianweng.github.io/posts/2023-06-23-agent/",),    bs_kwargs={"parse_only": bs4_strainer},)docs = loader.load()assert len(docs) == 1print(f"Total characters: {len(docs[0].page_content)}")
-```
+*   [Tool calling](https://python.langchain.com/docs/concepts/tool_calling/): Many popular chat models offer a native [tool calling](https://python.langchain.com/docs/concepts/tool_calling/) API. This API allows developers to build rich applications that enable LLMs to interact with external services, APIs, and databases. Tool calling can also be used to extract structured information from unstructured data and perform various other tasks.
+*   [Structured output](https://python.langchain.com/docs/concepts/structured_outputs/): A technique to make a chat model respond in a structured format, such as JSON that matches a given schema.
+*   [Multimodality](https://python.langchain.com/docs/concepts/multimodality/): The ability to work with data other than text; for example, images, audio, and video.
 
-```
-print(docs[0].page_content[:500])
-```
+Features[​](https://python.langchain.com/docs/concepts/chat_models/#features "Direct link to Features")
+-------------------------------------------------------------------------------------------------------
 
-```
-      LLM Powered Autonomous Agents    Date: June 23, 2023  |  Estimated Reading Time: 31 min  |  Author: Lilian WengBuilding agents with LLM (large language model) as its core controller is a cool concept. Several proof-of-concepts demos, such as AutoGPT, GPT-Engineer and BabyAGI, serve as inspiring examples. The potentiality of LLM extends beyond generating well-written copies, stories, essays and programs; it can be framed as a powerful general problem solver.Agent System Overview#In
-```
+LangChain provides a consistent interface for working with chat models from different providers while offering additional features for monitoring, debugging, and optimizing the performance of applications that use LLMs.
 
-#### Go deeper[​](https://python.langchain.com/docs/tutorials/rag/#go-deeper "Direct link to Go deeper")
+*   Integrations with many chat model providers (e.g., Anthropic, OpenAI, Ollama, Microsoft Azure, Google Vertex, Amazon Bedrock, Hugging Face, Cohere, Groq). Please see [chat model integrations](https://python.langchain.com/docs/integrations/chat/) for an up-to-date list of supported models.
+*   Use either LangChain's [messages](https://python.langchain.com/docs/concepts/messages/) format or OpenAI format.
+*   Standard [tool calling API](https://python.langchain.com/docs/concepts/tool_calling/): standard interface for binding tools to models, accessing tool call requests made by models, and sending tool results back to the model.
+*   Standard API for [structuring outputs](https://python.langchain.com/docs/concepts/structured_outputs/#structured-output-method) via the `with_structured_output` method.
+*   Provides support for [async programming](https://python.langchain.com/docs/concepts/async/), [efficient batching](https://python.langchain.com/docs/concepts/runnables/#optimized-parallel-execution-batch), [a rich streaming API](https://python.langchain.com/docs/concepts/streaming/).
+*   Integration with [LangSmith](https://docs.smith.langchain.com/) for monitoring and debugging production-grade applications based on LLMs.
+*   Additional features like standardized [token usage](https://python.langchain.com/docs/concepts/messages/#aimessage), [rate limiting](https://python.langchain.com/docs/concepts/chat_models/#rate-limiting), [caching](https://python.langchain.com/docs/concepts/chat_models/#caching) and more.
 
-`DocumentLoader`: Object that loads data from a source as list of `Documents`.
+Integrations[​](https://python.langchain.com/docs/concepts/chat_models/#integrations "Direct link to Integrations")
+-------------------------------------------------------------------------------------------------------------------
 
-*   [Docs](https://python.langchain.com/docs/how_to/#document-loaders): Detailed documentation on how to use `DocumentLoaders`.
-*   [Integrations](https://python.langchain.com/docs/integrations/document_loaders/): 160+ integrations to choose from.
-*   [Interface](https://python.langchain.com/api_reference/core/document_loaders/langchain_core.document_loaders.base.BaseLoader.html): API reference for the base interface.
+LangChain has many chat model integrations that allow you to use a wide variety of models from different providers.
 
-### Splitting documents[​](https://python.langchain.com/docs/tutorials/rag/#splitting-documents "Direct link to Splitting documents")
+These integrations are one of two types:
 
-Our loaded document is over 42k characters which is too long to fit into the context window of many models. Even for those models that could fit the full post in their context window, models can struggle to find information in very long inputs.
+1.  **Official models**: These are models that are officially supported by LangChain and/or model provider. You can find these models in the `langchain-<provider>` packages.
+2.  **Community models**: There are models that are mostly contributed and supported by the community. You can find these models in the `langchain-community` package.
 
-To handle this we’ll split the `Document` into chunks for embedding and vector storage. This should help us retrieve only the most relevant parts of the blog post at run time.
+LangChain chat models are named with a convention that prefixes "Chat" to their class names (e.g., `ChatOllama`, `ChatAnthropic`, `ChatOpenAI`, etc.).
 
-As in the [semantic search tutorial](https://python.langchain.com/docs/tutorials/retrievers/), we use a [RecursiveCharacterTextSplitter](https://python.langchain.com/docs/how_to/recursive_text_splitter/), which will recursively split the document using common separators like new lines until each chunk is the appropriate size. This is the recommended text splitter for generic text use cases.
+Please review the [chat model integrations](https://python.langchain.com/docs/integrations/chat/) for a list of supported models.
 
-```
-from langchain_text_splitters import RecursiveCharacterTextSplittertext_splitter = RecursiveCharacterTextSplitter(    chunk_size=1000,  # chunk size (characters)    chunk_overlap=200,  # chunk overlap (characters)    add_start_index=True,  # track index in original document)all_splits = text_splitter.split_documents(docs)print(f"Split blog post into {len(all_splits)} sub-documents.")
-```
+note
 
-```
-Split blog post into 66 sub-documents.
-```
+Models that do **not** include the prefix "Chat" in their name or include "LLM" as a suffix in their name typically refer to older models that do not follow the chat model interface and instead use an interface that takes a string as input and returns a string as output.
 
-#### Go deeper[​](https://python.langchain.com/docs/tutorials/rag/#go-deeper-1 "Direct link to Go deeper")
+Interface[​](https://python.langchain.com/docs/concepts/chat_models/#interface "Direct link to Interface")
+----------------------------------------------------------------------------------------------------------
 
-`TextSplitter`: Object that splits a list of `Document`s into smaller chunks. Subclass of `DocumentTransformer`s.
+LangChain chat models implement the [BaseChatModel](https://python.langchain.com/api_reference/core/language_models/langchain_core.language_models.chat_models.BaseChatModel.html) interface. Because `BaseChatModel` also implements the [Runnable Interface](https://python.langchain.com/docs/concepts/runnables/), chat models support a [standard streaming interface](https://python.langchain.com/docs/concepts/streaming/), [async programming](https://python.langchain.com/docs/concepts/async/), optimized [batching](https://python.langchain.com/docs/concepts/runnables/#optimized-parallel-execution-batch), and more. Please see the [Runnable Interface](https://python.langchain.com/docs/concepts/runnables/) for more details.
 
-*   Learn more about splitting text using different methods by reading the [how-to docs](https://python.langchain.com/docs/how_to/#text-splitters)
-*   [Code (py or js)](https://python.langchain.com/docs/integrations/document_loaders/source_code/)
-*   [Scientific papers](https://python.langchain.com/docs/integrations/document_loaders/grobid/)
-*   [Interface](https://python.langchain.com/api_reference/text_splitters/base/langchain_text_splitters.base.TextSplitter.html): API reference for the base interface.
+Many of the key methods of chat models operate on [messages](https://python.langchain.com/docs/concepts/messages/) as input and return messages as output.
 
-`DocumentTransformer`: Object that performs a transformation on a list of `Document` objects.
+Chat models offer a standard set of parameters that can be used to configure the model. These parameters are typically used to control the behavior of the model, such as the temperature of the output, the maximum number of tokens in the response, and the maximum time to wait for a response. Please see the [standard parameters](https://python.langchain.com/docs/concepts/chat_models/#standard-parameters) section for more details.
 
-*   [Docs](https://python.langchain.com/docs/how_to/#text-splitters): Detailed documentation on how to use `DocumentTransformers`
-*   [Integrations](https://python.langchain.com/docs/integrations/document_transformers/)
-*   [Interface](https://python.langchain.com/api_reference/core/documents/langchain_core.documents.transformers.BaseDocumentTransformer.html): API reference for the base interface.
+note
 
-### Storing documents[​](https://python.langchain.com/docs/tutorials/rag/#storing-documents "Direct link to Storing documents")
+In documentation, we will often use the terms "LLM" and "Chat Model" interchangeably. This is because most modern LLMs are exposed to users via a chat model interface.
 
-Now we need to index our 66 text chunks so that we can search over them at runtime. Following the [semantic search tutorial](https://python.langchain.com/docs/tutorials/retrievers/), our approach is to [embed](https://python.langchain.com/docs/concepts/embedding_models/) the contents of each document split and insert these embeddings into a [vector store](https://python.langchain.com/docs/concepts/vectorstores/). Given an input query, we can then use vector search to retrieve relevant documents.
+However, LangChain also has implementations of older LLMs that do not follow the chat model interface and instead use an interface that takes a string as input and returns a string as output. These models are typically named without the "Chat" prefix (e.g., `Ollama`, `Anthropic`, `OpenAI`, etc.). These models implement the [BaseLLM](https://python.langchain.com/api_reference/core/language_models/langchain_core.language_models.llms.BaseLLM.html#langchain_core.language_models.llms.BaseLLM) interface and may be named with the "LLM" suffix (e.g., `OllamaLLM`, `AnthropicLLM`, `OpenAILLM`, etc.). Generally, users should not use these models.
 
-We can embed and store all of our document splits in a single command using the vector store and embeddings model selected at the [start of the tutorial](https://python.langchain.com/docs/tutorials/rag/#components).
+### Key methods[​](https://python.langchain.com/docs/concepts/chat_models/#key-methods "Direct link to Key methods")
 
-```
-document_ids = vector_store.add_documents(documents=all_splits)print(document_ids[:3])
-```
+The key methods of a chat model are:
 
-```
-['07c18af6-ad58-479a-bfb1-d508033f9c64', '9000bf8e-1993-446f-8d4d-f4e507ba4b8f', 'ba3b5d14-bed9-4f5f-88be-44c88aedc2e6']
-```
+1.  **invoke**: The primary method for interacting with a chat model. It takes a list of [messages](https://python.langchain.com/docs/concepts/messages/) as input and returns a list of messages as output.
+2.  **stream**: A method that allows you to stream the output of a chat model as it is generated.
+3.  **batch**: A method that allows you to batch multiple requests to a chat model together for more efficient processing.
+4.  **bind\_tools**: A method that allows you to bind a tool to a chat model for use in the model's execution context.
+5.  **with\_structured\_output**: A wrapper around the `invoke` method for models that natively support [structured output](https://python.langchain.com/docs/concepts/structured_outputs/).
 
-#### Go deeper[​](https://python.langchain.com/docs/tutorials/rag/#go-deeper-2 "Direct link to Go deeper")
+Other important methods can be found in the [BaseChatModel API Reference](https://python.langchain.com/api_reference/core/language_models/langchain_core.language_models.chat_models.BaseChatModel.html).
 
-`Embeddings`: Wrapper around a text embedding model, used for converting text to embeddings.
+### Inputs and outputs[​](https://python.langchain.com/docs/concepts/chat_models/#inputs-and-outputs "Direct link to Inputs and outputs")
 
-*   [Docs](https://python.langchain.com/docs/how_to/embed_text/): Detailed documentation on how to use embeddings.
-*   [Integrations](https://python.langchain.com/docs/integrations/text_embedding/): 30+ integrations to choose from.
-*   [Interface](https://python.langchain.com/api_reference/core/embeddings/langchain_core.embeddings.Embeddings.html): API reference for the base interface.
+Modern LLMs are typically accessed through a chat model interface that takes [messages](https://python.langchain.com/docs/concepts/messages/) as input and returns [messages](https://python.langchain.com/docs/concepts/messages/) as output. Messages are typically associated with a role (e.g., "system", "human", "assistant") and one or more content blocks that contain text or potentially multimodal data (e.g., images, audio, video).
 
-`VectorStore`: Wrapper around a vector database, used for storing and querying embeddings.
+LangChain supports two message formats to interact with chat models:
 
-*   [Docs](https://python.langchain.com/docs/how_to/vectorstores/): Detailed documentation on how to use vector stores.
-*   [Integrations](https://python.langchain.com/docs/integrations/vectorstores/): 40+ integrations to choose from.
-*   [Interface](https://python.langchain.com/api_reference/core/vectorstores/langchain_core.vectorstores.base.VectorStore.html): API reference for the base interface.
+1.  **LangChain Message Format**: LangChain's own message format, which is used by default and is used internally by LangChain.
+2.  **OpenAI's Message Format**: OpenAI's message format.
 
-This completes the **Indexing** portion of the pipeline. At this point we have a query-able vector store containing the chunked contents of our blog post. Given a user question, we should ideally be able to return the snippets of the blog post that answer the question.
+### Standard parameters[​](https://python.langchain.com/docs/concepts/chat_models/#standard-parameters "Direct link to Standard parameters")
 
-2\. Retrieval and Generation[​](https://python.langchain.com/docs/tutorials/rag/#orchestration "Direct link to 2. Retrieval and Generation")
---------------------------------------------------------------------------------------------------------------------------------------------
+Many chat models have standardized parameters that can be used to configure the model:
 
-Now let’s write the actual application logic. We want to create a simple application that takes a user question, searches for documents relevant to that question, passes the retrieved documents and initial question to a model, and returns an answer.
+| Parameter      | Description                                                                                                                                                                                                                                                                                                                                                          |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `model`        | The name or identifier of the specific AI model you want to use (e.g., `"gpt-3.5-turbo"` or `"gpt-4"`).                                                                                                                                                                                                                                                              |
+| `temperature`  | Controls the randomness of the model's output. A higher value (e.g., 1.0) makes responses more creative, while a lower value (e.g., 0.0) makes them more deterministic and focused.                                                                                                                                                                                  |
+| `timeout`      | The maximum time (in seconds) to wait for a response from the model before canceling the request. Ensures the request doesn’t hang indefinitely.                                                                                                                                                                                                                     |
+| `max_tokens`   | Limits the total number of tokens (words and punctuation) in the response. This controls how long the output can be.                                                                                                                                                                                                                                                 |
+| `stop`         | Specifies stop sequences that indicate when the model should stop generating tokens. For example, you might use specific strings to signal the end of a response.                                                                                                                                                                                                    |
+| `max_retries`  | The maximum number of attempts the system will make to resend a request if it fails due to issues like network timeouts or rate limits.                                                                                                                                                                                                                              |
+| `api_key`      | The API key required for authenticating with the model provider. This is usually issued when you sign up for access to the model.                                                                                                                                                                                                                                    |
+| `base_url`     | The URL of the API endpoint where requests are sent. This is typically provided by the model's provider and is necessary for directing your requests.                                                                                                                                                                                                                |
+| `rate_limiter` | An optional [BaseRateLimiter](https://python.langchain.com/api_reference/core/rate_limiters/langchain_core.rate_limiters.BaseRateLimiter.html#langchain_core.rate_limiters.BaseRateLimiter) to space out requests to avoid exceeding rate limits. See [rate-limiting](https://python.langchain.com/docs/concepts/chat_models/#rate-limiting) below for more details. |
 
-For generation, we will use the chat model selected at the [start of the tutorial](https://python.langchain.com/docs/tutorials/rag/#components).
+Some important things to note:
 
-We’ll use a prompt for RAG that is checked into the LangChain prompt hub ([here](https://smith.langchain.com/hub/rlm/rag-prompt)).
+*   Standard parameters only apply to model providers that expose parameters with the intended functionality. For example, some providers do not expose a configuration for maximum output tokens, so max\_tokens can't be supported on these.
+*   Standard parameters are currently only enforced on integrations that have their own integration packages (e.g. `langchain-openai`, `langchain-anthropic`, etc.), they're not enforced on models in `langchain-community`.
 
-```
-from langchain import hubprompt = hub.pull("rlm/rag-prompt")example_messages = prompt.invoke(    {"context": "(context goes here)", "question": "(question goes here)"}).to_messages()assert len(example_messages) == 1print(example_messages[0].content)
-```
+Chat models also accept other parameters that are specific to that integration. To find all the parameters supported by a Chat model head to the their respective [API reference](https://python.langchain.com/api_reference/) for that model.
 
-```
-You are an assistant for question-answering tasks. Use the following pieces of retrieved context to answer the question. If you don't know the answer, just say that you don't know. Use three sentences maximum and keep the answer concise.Question: (question goes here) Context: (context goes here) Answer:
-```
+Chat models can call [tools](https://python.langchain.com/docs/concepts/tools/) to perform tasks such as fetching data from a database, making API requests, or running custom code. Please see the [tool calling](https://python.langchain.com/docs/concepts/tool_calling/) guide for more information.
 
-We'll use [LangGraph](https://langchain-ai.github.io/langgraph/) to tie together the retrieval and generation steps into a single application. This will bring a number of benefits:
+Structured outputs[​](https://python.langchain.com/docs/concepts/chat_models/#structured-outputs "Direct link to Structured outputs")
+-------------------------------------------------------------------------------------------------------------------------------------
 
-*   We can define our application logic once and automatically support multiple invocation modes, including streaming, async, and batched calls.
-*   We get streamlined deployments via [LangGraph Platform](https://langchain-ai.github.io/langgraph/concepts/langgraph_platform/).
-*   LangSmith will automatically trace the steps of our application together.
-*   We can easily add key features to our application, including [persistence](https://langchain-ai.github.io/langgraph/concepts/persistence/) and [human-in-the-loop approval](https://langchain-ai.github.io/langgraph/concepts/human_in_the_loop/), with minimal code changes.
+Chat models can be requested to respond in a particular format (e.g., JSON or matching a particular schema). This feature is extremely useful for information extraction tasks. Please read more about the technique in the [structured outputs](https://python.langchain.com/docs/concepts/structured_outputs/) guide.
 
-To use LangGraph, we need to define three things:
+Multimodality[​](https://python.langchain.com/docs/concepts/chat_models/#multimodality "Direct link to Multimodality")
+----------------------------------------------------------------------------------------------------------------------
 
-1.  The state of our application;
-2.  The nodes of our application (i.e., application steps);
-3.  The "control flow" of our application (e.g., the ordering of the steps).
+Large Language Models (LLMs) are not limited to processing text. They can also be used to process other types of data, such as images, audio, and video. This is known as [multimodality](https://python.langchain.com/docs/concepts/multimodality/).
 
-#### State:[​](https://python.langchain.com/docs/tutorials/rag/#state "Direct link to State:")
+Currently, only some LLMs support multimodal inputs, and almost none support multimodal outputs. Please consult the specific model documentation for details.
 
-The [state](https://langchain-ai.github.io/langgraph/concepts/low_level/#state) of our application controls what data is input to the application, transferred between steps, and output by the application. It is typically a `TypedDict`, but can also be a [Pydantic BaseModel](https://langchain-ai.github.io/langgraph/how-tos/state-model/).
+Context window[​](https://python.langchain.com/docs/concepts/chat_models/#context-window "Direct link to Context window")
+-------------------------------------------------------------------------------------------------------------------------
 
-For a simple RAG application, we can just keep track of the input question, retrieved context, and generated answer:
+A chat model's context window refers to the maximum size of the input sequence the model can process at one time. While the context windows of modern LLMs are quite large, they still present a limitation that developers must keep in mind when working with chat models.
 
-```
-from langchain_core.documents import Documentfrom typing_extensions import List, TypedDictclass State(TypedDict):    question: str    context: List[Document]    answer: str
-```
+If the input exceeds the context window, the model may not be able to process the entire input and could raise an error. In conversational applications, this is especially important because the context window determines how much information the model can "remember" throughout a conversation. Developers often need to manage the input within the context window to maintain a coherent dialogue without exceeding the limit. For more details on handling memory in conversations, refer to the [memory](https://langchain-ai.github.io/langgraph/concepts/memory/).
 
-#### Nodes (application steps)[​](https://python.langchain.com/docs/tutorials/rag/#nodes-application-steps "Direct link to Nodes (application steps)")
+The size of the input is measured in [tokens](https://python.langchain.com/docs/concepts/tokens/) which are the unit of processing that the model uses.
 
-Let's start with a simple sequence of two steps: retrieval and generation.
+Advanced topics[​](https://python.langchain.com/docs/concepts/chat_models/#advanced-topics "Direct link to Advanced topics")
+----------------------------------------------------------------------------------------------------------------------------
 
-```
-def retrieve(state: State):    retrieved_docs = vector_store.similarity_search(state["question"])    return {"context": retrieved_docs}def generate(state: State):    docs_content = "\n\n".join(doc.page_content for doc in state["context"])    messages = prompt.invoke({"question": state["question"], "context": docs_content})    response = llm.invoke(messages)    return {"answer": response.content}
-```
+### Rate-limiting[​](https://python.langchain.com/docs/concepts/chat_models/#rate-limiting "Direct link to Rate-limiting")
 
-Our retrieval step simply runs a similarity search using the input question, and the generation step formats the retrieved context and original question into a prompt for the chat model.
+Many chat model providers impose a limit on the number of requests that can be made in a given time period.
 
-#### Control flow[​](https://python.langchain.com/docs/tutorials/rag/#control-flow "Direct link to Control flow")
+If you hit a rate limit, you will typically receive a rate limit error response from the provider, and will need to wait before making more requests.
 
-Finally, we compile our application into a single `graph` object. In this case, we are just connecting the retrieval and generation steps into a single sequence.
+You have a few options to deal with rate limits:
 
-```
-from langgraph.graph import START, StateGraphgraph_builder = StateGraph(State).add_sequence([retrieve, generate])graph_builder.add_edge(START, "retrieve")graph = graph_builder.compile()
-```
+1.  Try to avoid hitting rate limits by spacing out requests: Chat models accept a `rate_limiter` parameter that can be provided during initialization. This parameter is used to control the rate at which requests are made to the model provider. Spacing out the requests to a given model is a particularly useful strategy when benchmarking models to evaluate their performance. Please see the [how to handle rate limits](https://python.langchain.com/docs/how_to/chat_model_rate_limiting/) for more information on how to use this feature.
+2.  Try to recover from rate limit errors: If you receive a rate limit error, you can wait a certain amount of time before retrying the request. The amount of time to wait can be increased with each subsequent rate limit error. Chat models have a `max_retries` parameter that can be used to control the number of retries. See the [standard parameters](https://python.langchain.com/docs/concepts/chat_models/#standard-parameters) section for more information.
+3.  Fallback to another chat model: If you hit a rate limit with one chat model, you can switch to another chat model that is not rate-limited.
 
-LangGraph also comes with built-in utilities for visualizing the control flow of your application:
+### Caching[​](https://python.langchain.com/docs/concepts/chat_models/#caching "Direct link to Caching")
 
-```
-from IPython.display import Image, displaydisplay(Image(graph.get_graph().draw_mermaid_png()))
-```
+Chat model APIs can be slow, so a natural question is whether to cache the results of previous conversations. Theoretically, caching can help improve performance by reducing the number of requests made to the model provider. In practice, caching chat model responses is a complex problem and should be approached with caution.
 
-![Image 13](blob:https://python.langchain.com/3032123e139f93b4cab37ca26b85a559)
+The reason is that getting a cache hit is unlikely after the first or second interaction in a conversation if relying on caching the **exact** inputs into the model. For example, how likely do you think that multiple conversations start with the exact same message? What about the exact same three messages?
 
-Do I need to use LangGraph?
+An alternative approach is to use semantic caching, where you cache responses based on the meaning of the input rather than the exact input itself. This can be effective in some situations, but not in others.
 
-LangGraph is not required to build a RAG application. Indeed, we can implement the same application logic through invocations of the individual components:
+A semantic cache introduces a dependency on another model on the critical path of your application (e.g., the semantic cache may rely on an [embedding model](https://python.langchain.com/docs/concepts/embedding_models/) to convert text to a vector representation), and it's not guaranteed to capture the meaning of the input accurately.
 
-```
-question = "..."retrieved_docs = vector_store.similarity_search(question)docs_content = "\n\n".join(doc.page_content for doc in retrieved_docs)prompt = prompt.invoke({"question": question, "context": formatted_docs})answer = llm.invoke(prompt)
-```
+However, there might be situations where caching chat model responses is beneficial. For example, if you have a chat model that is used to answer frequently asked questions, caching responses can help reduce the load on the model provider, costs, and improve response times.
 
-The benefits of LangGraph include:
+Please see the [how to cache chat model responses](https://python.langchain.com/docs/how_to/chat_model_caching/) guide for more details.
 
-*   Support for multiple invocation modes: this logic would need to be rewritten if we wanted to stream output tokens, or stream the results of individual steps;
-*   Automatic support for tracing via [LangSmith](https://docs.smith.langchain.com/) and deployments via [LangGraph Platform](https://langchain-ai.github.io/langgraph/concepts/langgraph_platform/);
-*   Support for persistence, human-in-the-loop, and other features.
+*   How-to guides on using chat models: [how-to guides](https://python.langchain.com/docs/how_to/#chat-models).
+*   List of supported chat models: [chat model integrations](https://python.langchain.com/docs/integrations/chat/).
 
-Many use-cases demand RAG in a conversational experience, such that a user can receive context-informed answers via a stateful conversation. As we will see in [Part 2](https://python.langchain.com/docs/tutorials/qa_chat_history/) of the tutorial, LangGraph's management and persistence of state simplifies these applications enormously.
+### Conceptual guides[​](https://python.langchain.com/docs/concepts/chat_models/#conceptual-guides "Direct link to Conceptual guides")
 
-#### Usage[​](https://python.langchain.com/docs/tutorials/rag/#usage "Direct link to Usage")
-
-Let's test our application! LangGraph supports multiple invocation modes, including sync, async, and streaming.
-
-Invoke:
-
-```
-result = graph.invoke({"question": "What is Task Decomposition?"})print(f'Context: {result["context"]}\n\n')print(f'Answer: {result["answer"]}')
-```
-
-
-
-Stream steps:
-
-```
-for step in graph.stream(    {"question": "What is Task Decomposition?"}, stream_mode="updates"):    print(f"{step}\n\n----------------\n")
-```
-
-
-
-Stream [tokens](https://python.langchain.com/docs/concepts/tokens/):
-
-```
-for message, metadata in graph.stream(    {"question": "What is Task Decomposition?"}, stream_mode="messages"):    print(message.content, end="|")
-```
-
-```
-|Task| decomposition| is| the| process| of| breaking| down| complex| tasks| into| smaller|,| more| manageable| steps|.| It| can| be| achieved| through| techniques| like| Chain| of| Thought| (|Co|T|)| prompting|,| which| encourages| the| model| to| think| step| by| step|,| or| through| more| structured| methods| like| the| Tree| of| Thoughts|.| This| approach| not| only| simplifies| task| execution| but| also| provides| insights| into| the| model|'s| reasoning| process|.||
-```
-
-tip
-
-For async invocations, use:
-
-```
-result = await graph.ainvoke(...)
-```
-
-and
-
-```
-async for step in graph.astream(...):
-```
-
-#### Returning sources[​](https://python.langchain.com/docs/tutorials/rag/#returning-sources "Direct link to Returning sources")
-
-Note that by storing the retrieved context in the state of the graph, we recover sources for the model's generated answer in the `"context"` field of the state. See [this guide](https://python.langchain.com/docs/how_to/qa_sources/) on returning sources for more detail.
-
-#### Go deeper[​](https://python.langchain.com/docs/tutorials/rag/#go-deeper-3 "Direct link to Go deeper")
-
-[Chat models](https://python.langchain.com/docs/concepts/chat_models/) take in a sequence of messages and return a message.
-
-*   [Docs](https://python.langchain.com/docs/how_to/#chat-models)
-*   [Integrations](https://python.langchain.com/docs/integrations/chat/): 25+ integrations to choose from.
-*   [Interface](https://python.langchain.com/api_reference/core/language_models/langchain_core.language_models.chat_models.BaseChatModel.html): API reference for the base interface.
-
-**Customizing the prompt**
-
-As shown above, we can load prompts (e.g., [this RAG prompt](https://smith.langchain.com/hub/rlm/rag-prompt)) from the prompt hub. The prompt can also be easily customized. For example:
-
-```
-from langchain_core.prompts import PromptTemplatetemplate = """Use the following pieces of context to answer the question at the end.If you don't know the answer, just say that you don't know, don't try to make up an answer.Use three sentences maximum and keep the answer as concise as possible.Always say "thanks for asking!" at the end of the answer.{context}Question: {question}Helpful Answer:"""custom_rag_prompt = PromptTemplate.from_template(template)
-```
-
-Query analysis[​](https://python.langchain.com/docs/tutorials/rag/#query-analysis "Direct link to Query analysis")
-------------------------------------------------------------------------------------------------------------------
-
-So far, we are executing the retrieval using the raw input query. However, there are some advantages to allowing a model to generate the query for retrieval purposes. For example:
-
-*   In addition to semantic search, we can build in structured filters (e.g., "Find documents since the year 2020.");
-*   The model can rewrite user queries, which may be multifaceted or include irrelevant language, into more effective search queries.
-
-[Query analysis](https://python.langchain.com/docs/concepts/retrieval/#query-analysis) employs models to transform or construct optimized search queries from raw user input. We can easily incorporate a query analysis step into our application. For illustrative purposes, let's add some metadata to the documents in our vector store. We will add some (contrived) sections to the document which we can filter on later.
-
-```
-total_documents = len(all_splits)third = total_documents // 3for i, document in enumerate(all_splits):    if i < third:        document.metadata["section"] = "beginning"    elif i < 2 * third:        document.metadata["section"] = "middle"    else:        document.metadata["section"] = "end"all_splits[0].metadata
-```
-
-```
-{'source': 'https://lilianweng.github.io/posts/2023-06-23-agent/', 'start_index': 8, 'section': 'beginning'}
-```
-
-We will need to update the documents in our vector store. We will use a simple [InMemoryVectorStore](https://python.langchain.com/api_reference/core/vectorstores/langchain_core.vectorstores.in_memory.InMemoryVectorStore.html) for this, as we will use some of its specific features (i.e., metadata filtering). Refer to the vector store [integration documentation](https://python.langchain.com/docs/integrations/vectorstores/) for relevant features of your chosen vector store.
-
-```
-from langchain_core.vectorstores import InMemoryVectorStorevector_store = InMemoryVectorStore(embeddings)_ = vector_store.add_documents(all_splits)
-```
-
-Let's next define a schema for our search query. We will use [structured output](https://python.langchain.com/docs/concepts/structured_outputs/) for this purpose. Here we define a query as containing a string query and a document section (either "beginning", "middle", or "end"), but this can be defined however you like.
-
-```
-from typing import Literalfrom typing_extensions import Annotatedclass Search(TypedDict):    """Search query."""    query: Annotated[str, ..., "Search query to run."]    section: Annotated[        Literal["beginning", "middle", "end"],        ...,        "Section to query.",    ]
-```
-
-Finally, we add a step to our LangGraph application to generate a query from the user's raw input:
-
-
-
-```
-display(Image(graph.get_graph().draw_mermaid_png()))
-```
-
-![Image 14](blob:https://python.langchain.com/3f10f4f9bc582cc88a16489d593ac14a)
-
-We can test our implementation by specifically asking for context from the end of the post. Note that the model includes different information in its answer.
-
-```
-for step in graph.stream(    {"question": "What does the end of the post say about Task Decomposition?"},    stream_mode="updates",):    print(f"{step}\n\n----------------\n")
-```
-
-
-
-In both the streamed steps and the [LangSmith trace](https://smith.langchain.com/public/bdbaae61-130c-4338-8b59-9315dfee22a0/r), we can now observe the structured query that was fed into the retrieval step.
-
-Query Analysis is a rich problem with a wide range of approaches. Refer to the [how-to guides](https://python.langchain.com/docs/how_to/#query-analysis) for more examples.
-
-Next steps[​](https://python.langchain.com/docs/tutorials/rag/#next-steps "Direct link to Next steps")
-------------------------------------------------------------------------------------------------------
-
-We've covered the steps to build a basic Q&A app over data:
-
-*   Loading data with a [Document Loader](https://python.langchain.com/docs/concepts/document_loaders/)
-*   Chunking the indexed data with a [Text Splitter](https://python.langchain.com/docs/concepts/text_splitters/) to make it more easily usable by a model
-*   [Embedding the data](https://python.langchain.com/docs/concepts/embedding_models/) and storing the data in a [vectorstore](https://python.langchain.com/docs/how_to/vectorstores/)
-*   [Retrieving](https://python.langchain.com/docs/concepts/retrievers/) the previously stored chunks in response to incoming questions
-*   Generating an answer using the retrieved chunks as context.
-
-In [Part 2](https://python.langchain.com/docs/tutorials/qa_chat_history/) of the tutorial, we will extend the implementation here to accommodate conversation-style interactions and multi-step retrieval processes.
-
-Further reading:
-
-*   [Return sources](https://python.langchain.com/docs/how_to/qa_sources/): Learn how to return source documents
-*   [Streaming](https://python.langchain.com/docs/how_to/streaming/): Learn how to stream outputs and intermediate steps
-*   [Add chat history](https://python.langchain.com/docs/how_to/message_history/): Learn how to add chat history to your app
-*   [Retrieval conceptual guide](https://python.langchain.com/docs/concepts/retrieval/): A high-level overview of specific retrieval techniques
-No text detected.
-Try a screenshot instead.
-0
-:
-00
-
+*   [Messages](https://python.langchain.com/docs/concepts/messages/)
+*   [Tool calling](https://python.langchain.com/docs/concepts/tool_calling/)
+*   [Multimodality](https://python.langchain.com/docs/concepts/multimodality/)
+*   [Structured outputs](https://python.langchain.com/docs/concepts/structured_outputs/)

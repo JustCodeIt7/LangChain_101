@@ -1,256 +1,141 @@
-Title: Summarize Text | 🦜️🔗 LangChain
+Title: Vector stores | 🦜️🔗 LangChain
 
-URL Source: https://python.langchain.com/docs/tutorials/summarization/
+URL Source: https://python.langchain.com/docs/concepts/vectorstores/
 
 Markdown Content:
-Suppose you have a set of documents (PDFs, Notion pages, customer questions, etc.) and you want to summarize the content.
+Note
 
-LLMs are a great tool for this given their proficiency in understanding and synthesizing text.
+This conceptual overview focuses on text-based indexing and retrieval for simplicity. However, embedding models can be [multi-modal](https://cloud.google.com/vertex-ai/generative-ai/docs/embeddings/get-multimodal-embeddings) and vector stores can be used to store and retrieve a variety of data types beyond text.
 
-In the context of [retrieval-augmented generation](https://python.langchain.com/docs/tutorials/rag/), summarizing text can help distill the information in a large number of retrieved documents to provide context for a LLM.
+Overview[​](https://python.langchain.com/docs/concepts/vectorstores/#overview "Direct link to Overview")
+--------------------------------------------------------------------------------------------------------
 
-In this walkthrough we'll go over how to summarize content from multiple documents using LLMs.
+Vector stores are specialized data stores that enable indexing and retrieving information based on vector representations.
 
-![Image 11: Image description](https://python.langchain.com/assets/images/summarization_use_case_1-874f7b2c94f64216f1f967fb5aca7bc1.png)
+These vectors, called [embeddings](https://python.langchain.com/docs/concepts/embedding_models/), capture the semantic meaning of data that has been embedded.
 
-Concepts[​](https://python.langchain.com/docs/tutorials/summarization/#concepts "Direct link to Concepts")
-----------------------------------------------------------------------------------------------------------
+Vector stores are frequently used to search over unstructured data, such as text, images, and audio, to retrieve relevant information based on semantic similarity rather than exact keyword matches.
 
-Concepts we will cover are:
+![Image 5: Vector stores](https://python.langchain.com/assets/images/vectorstores-2540b4bc355b966c99b0f02cfdddb273.png)
 
-*   Using [language models](https://python.langchain.com/docs/concepts/chat_models/).
-    
-*   Using [document loaders](https://python.langchain.com/docs/concepts/document_loaders/), specifically the [WebBaseLoader](https://python.langchain.com/api_reference/community/document_loaders/langchain_community.document_loaders.web_base.WebBaseLoader.html) to load content from an HTML webpage.
-    
-*   Two ways to summarize or otherwise combine documents.
-    
-    1.  [Stuff](https://python.langchain.com/docs/tutorials/summarization/#stuff), which simply concatenates documents into a prompt;
-    2.  [Map-reduce](https://python.langchain.com/docs/tutorials/summarization/#map-reduce), for larger sets of documents. This splits documents into batches, summarizes those, and then summarizes the summaries.
+Integrations[​](https://python.langchain.com/docs/concepts/vectorstores/#integrations "Direct link to Integrations")
+--------------------------------------------------------------------------------------------------------------------
 
-Shorter, targeted guides on these strategies and others, including [iterative refinement](https://python.langchain.com/docs/how_to/summarize_refine/), can be found in the [how-to guides](https://python.langchain.com/docs/how_to/#summarization).
+LangChain has a large number of vectorstore integrations, allowing users to easily switch between different vectorstore implementations.
 
-Setup[​](https://python.langchain.com/docs/tutorials/summarization/#setup "Direct link to Setup")
--------------------------------------------------------------------------------------------------
+Please see the [full list of LangChain vectorstore integrations](https://python.langchain.com/docs/integrations/vectorstores/).
 
-### Jupyter Notebook[​](https://python.langchain.com/docs/tutorials/summarization/#jupyter-notebook "Direct link to Jupyter Notebook")
+Interface[​](https://python.langchain.com/docs/concepts/vectorstores/#interface "Direct link to Interface")
+-----------------------------------------------------------------------------------------------------------
 
-This guide (and most of the other guides in the documentation) uses [Jupyter notebooks](https://jupyter.org/) and assumes the reader is as well. Jupyter notebooks are perfect for learning how to work with LLM systems because oftentimes things can go wrong (unexpected output, API down, etc) and going through guides in an interactive environment is a great way to better understand them.
+LangChain provides a standard interface for working with vector stores, allowing users to easily switch between different vectorstore implementations.
 
-This and other tutorials are perhaps most conveniently run in a Jupyter notebook. See [here](https://jupyter.org/install) for instructions on how to install.
+The interface consists of basic methods for writing, deleting and searching for documents in the vector store.
 
-### Installation[​](https://python.langchain.com/docs/tutorials/summarization/#installation "Direct link to Installation")
+The key methods are:
 
-To install LangChain run:
+*   `add_documents`: Add a list of texts to the vector store.
+*   `delete_documents`: Delete a list of documents from the vector store.
+*   `similarity_search`: Search for similar documents to a given query.
 
-*   Pip
-*   Conda
+Initialization[​](https://python.langchain.com/docs/concepts/vectorstores/#initialization "Direct link to Initialization")
+--------------------------------------------------------------------------------------------------------------------------
 
-For more details, see our [Installation guide](https://python.langchain.com/docs/how_to/installation/).
+Most vectors in LangChain accept an embedding model as an argument when initializing the vector store.
 
-### LangSmith[​](https://python.langchain.com/docs/tutorials/summarization/#langsmith "Direct link to LangSmith")
-
-Many of the applications you build with LangChain will contain multiple steps with multiple invocations of LLM calls. As these applications get more and more complex, it becomes crucial to be able to inspect what exactly is going on inside your chain or agent. The best way to do this is with [LangSmith](https://smith.langchain.com/).
-
-After you sign up at the link above, make sure to set your environment variables to start logging traces:
+We will use LangChain's [InMemoryVectorStore](https://python.langchain.com/api_reference/core/vectorstores/langchain_core.vectorstores.in_memory.InMemoryVectorStore.html) implementation to illustrate the API.
 
 ```
-export LANGCHAIN_TRACING_V2="true"export LANGCHAIN_API_KEY="..."
+from langchain_core.vectorstores import InMemoryVectorStore# Initialize with an embedding modelvector_store = InMemoryVectorStore(embedding=SomeEmbeddingModel())
 ```
 
-Or, if in a notebook, you can set them with:
+Adding documents[​](https://python.langchain.com/docs/concepts/vectorstores/#adding-documents "Direct link to Adding documents")
+--------------------------------------------------------------------------------------------------------------------------------
+
+To add documents, use the `add_documents` method.
+
+This API works with a list of [Document](https://python.langchain.com/api_reference/core/documents/langchain_core.documents.base.Document.html) objects. `Document` objects all have `page_content` and `metadata` attributes, making them a universal way to store unstructured text and associated metadata.
 
 ```
-import getpassimport osos.environ["LANGCHAIN_TRACING_V2"] = "true"os.environ["LANGCHAIN_API_KEY"] = getpass.getpass()
+from langchain_core.documents import Documentdocument_1 = Document(    page_content="I had chocalate chip pancakes and scrambled eggs for breakfast this morning.",    metadata={"source": "tweet"},)document_2 = Document(    page_content="The weather forecast for tomorrow is cloudy and overcast, with a high of 62 degrees.",    metadata={"source": "news"},)documents = [document_1, document_2]vector_store.add_documents(documents=documents)
 ```
 
-Overview[​](https://python.langchain.com/docs/tutorials/summarization/#overview "Direct link to Overview")
-----------------------------------------------------------------------------------------------------------
-
-A central question for building a summarizer is how to pass your documents into the LLM's context window. Two common approaches for this are:
-
-1.  `Stuff`: Simply "stuff" all your documents into a single prompt. This is the simplest approach (see [here](https://python.langchain.com/docs/how_to/summarize_stuff/) for more on the `create_stuff_documents_chain` constructor, which is used for this method).
-    
-2.  `Map-reduce`: Summarize each document on its own in a "map" step and then "reduce" the summaries into a final summary (see [here](https://python.langchain.com/api_reference/langchain/chains/langchain.chains.combine_documents.map_reduce.MapReduceDocumentsChain.html) for more on the `MapReduceDocumentsChain`, which is used for this method).
-    
-
-Note that map-reduce is especially effective when understanding of a sub-document does not rely on preceding context. For example, when summarizing a corpus of many, shorter documents. In other cases, such as summarizing a novel or body of text with an inherent sequence, [iterative refinement](https://python.langchain.com/docs/how_to/summarize_refine/) may be more effective.
-
-![Image 12: Image description](https://python.langchain.com/assets/images/summarization_use_case_2-f2a4d5d60980a79140085fb7f8043217.png)
-
-Setup[​](https://python.langchain.com/docs/tutorials/summarization/#setup-1 "Direct link to Setup")
----------------------------------------------------------------------------------------------------
-
-First set environment variables and install packages:
+You should usually provide IDs for the documents you add to the vector store, so that instead of adding the same document multiple times, you can update the existing document.
 
 ```
-%pip install --upgrade --quiet tiktoken langchain langgraph beautifulsoup4 langchain-community# Set env var OPENAI_API_KEY or load from a .env file# import dotenv# dotenv.load_dotenv()
+vector_store.add_documents(documents=documents, ids=["doc1", "doc2"])
 ```
 
-```
-import osos.environ["LANGCHAIN_TRACING_V2"] = "true"
-```
+Delete[​](https://python.langchain.com/docs/concepts/vectorstores/#delete "Direct link to Delete")
+--------------------------------------------------------------------------------------------------
 
-First we load in our documents. We will use [WebBaseLoader](https://python.langchain.com/api_reference/community/document_loaders/langchain_community.document_loaders.web_base.WebBaseLoader.html) to load a blog post:
-
-```
-from langchain_community.document_loaders import WebBaseLoaderloader = WebBaseLoader("https://lilianweng.github.io/posts/2023-06-23-agent/")docs = loader.load()
-```
-
-Let's next select a LLM:
-
-*   OpenAI
-*   Anthropic
-*   Azure
-*   Google
-*   AWS
-*   Cohere
-*   NVIDIA
-*   FireworksAI
-*   Groq
-*   MistralAI
-*   TogetherAI
-*   Databricks
+To delete documents, use the `delete_documents` method which takes a list of document IDs to delete.
 
 ```
-pip install -qU langchain-openai
+vector_store.delete_documents(ids=["doc1"])
 ```
 
-```
-import getpassimport osos.environ["OPENAI_API_KEY"] = getpass.getpass()from langchain_openai import ChatOpenAIllm = ChatOpenAI(model="gpt-4o-mini")
-```
+Search[​](https://python.langchain.com/docs/concepts/vectorstores/#search "Direct link to Search")
+--------------------------------------------------------------------------------------------------
 
-Stuff: summarize in a single LLM call[​](https://python.langchain.com/docs/tutorials/summarization/#stuff "Direct link to Stuff: summarize in a single LLM call")
------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Vector stores embed and store the documents that added. If we pass in a query, the vectorstore will embed the query, perform a similarity search over the embedded documents, and return the most similar ones. This captures two important concepts: first, there needs to be a way to measure the similarity between the query and _any_ [embedded](https://python.langchain.com/docs/concepts/embedding_models/) document. Second, there needs to be an algorithm to efficiently perform this similarity search across _all_ embedded documents.
 
-We can use [create\_stuff\_documents\_chain](https://python.langchain.com/api_reference/langchain/chains/langchain.chains.combine_documents.stuff.create_stuff_documents_chain.html), especially if using larger context window models such as:
+### Similarity metrics[​](https://python.langchain.com/docs/concepts/vectorstores/#similarity-metrics "Direct link to Similarity metrics")
 
-*   128k token OpenAI `gpt-4o`
-*   200k token Anthropic `claude-3-5-sonnet-20240620`
+A critical advantage of embeddings vectors is they can be compared using many simple mathematical operations:
 
-The chain will take a list of documents, insert them all into a prompt, and pass that prompt to an LLM:
+*   **Cosine Similarity**: Measures the cosine of the angle between two vectors.
+*   **Euclidean Distance**: Measures the straight-line distance between two points.
+*   **Dot Product**: Measures the projection of one vector onto another.
 
-```
-from langchain.chains.combine_documents import create_stuff_documents_chainfrom langchain.chains.llm import LLMChainfrom langchain_core.prompts import ChatPromptTemplate# Define promptprompt = ChatPromptTemplate.from_messages(    [("system", "Write a concise summary of the following:\\n\\n{context}")])# Instantiate chainchain = create_stuff_documents_chain(llm, prompt)# Invoke chainresult = chain.invoke({"context": docs})print(result)
-```
-### Streaming[​](https://python.langchain.com/docs/tutorials/summarization/#streaming "Direct link to Streaming")
+The choice of similarity metric can sometimes be selected when initializing the vectorstore. Please refer to the documentation of the specific vectorstore you are using to see what similarity metrics are supported.
 
-Note that we can also stream the result token-by-token:
+Further reading
 
-```
-for token in chain.stream({"context": docs}):    print(token, end="|")
-```
+*   See [this documentation](https://developers.google.com/machine-learning/clustering/dnn-clustering/supervised-similarity) from Google on similarity metrics to consider with embeddings.
+*   See Pinecone's [blog post](https://www.pinecone.io/learn/vector-similarity/) on similarity metrics.
+*   See OpenAI's [FAQ](https://platform.openai.com/docs/guides/embeddings/faq) on what similarity metric to use with OpenAI embeddings.
 
+### Similarity search[​](https://python.langchain.com/docs/concepts/vectorstores/#similarity-search "Direct link to Similarity search")
 
-
-### Go deeper[​](https://python.langchain.com/docs/tutorials/summarization/#go-deeper "Direct link to Go deeper")
-
-*   You can easily customize the prompt.
-*   You can easily try different LLMs, (e.g., [Claude](https://python.langchain.com/docs/integrations/chat/anthropic/)) via the `llm` parameter.
-
-Map-Reduce: summarize long texts via parallelization[​](https://python.langchain.com/docs/tutorials/summarization/#map-reduce "Direct link to Map-Reduce: summarize long texts via parallelization")
-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-
-Let's unpack the map reduce approach. For this, we'll first map each document to an individual summary using an LLM. Then we'll reduce or consolidate those summaries into a single global summary.
-
-Note that the map step is typically parallelized over the input documents.
-
-[LangGraph](https://langchain-ai.github.io/langgraph/), built on top of `langchain-core`, supports [map-reduce](https://langchain-ai.github.io/langgraph/how-tos/map-reduce/) workflows and is well-suited to this problem:
-
-*   LangGraph allows for individual steps (such as successive summarizations) to be streamed, allowing for greater control of execution;
-*   LangGraph's [checkpointing](https://langchain-ai.github.io/langgraph/how-tos/persistence/) supports error recovery, extending with human-in-the-loop workflows, and easier incorporation into conversational applications.
-*   The LangGraph implementation is straightforward to modify and extend, as we will see below.
-
-### Map[​](https://python.langchain.com/docs/tutorials/summarization/#map "Direct link to Map")
-
-Let's first define the prompt associated with the map step. We can use the same summarization prompt as in the `stuff` approach, above:
+Given a similarity metric to measure the distance between the embedded query and any embedded document, we need an algorithm to efficiently search over _all_ the embedded documents to find the most similar ones. There are various ways to do this. As an example, many vectorstores implement [HNSW (Hierarchical Navigable Small World)](https://www.pinecone.io/learn/series/faiss/hnsw/), a graph-based index structure that allows for efficient similarity search. Regardless of the search algorithm used under the hood, the LangChain vectorstore interface has a `similarity_search` method for all integrations. This will take the search query, create an embedding, find similar documents, and return them as a list of [Documents](https://python.langchain.com/api_reference/core/documents/langchain_core.documents.base.Document.html).
 
 ```
-from langchain_core.prompts import ChatPromptTemplatemap_prompt = ChatPromptTemplate.from_messages(    [("system", "Write a concise summary of the following:\\n\\n{context}")])
+query = "my query"docs = vectorstore.similarity_search(query)
 ```
 
-We can also use the Prompt Hub to store and fetch prompts.
+Many vectorstores support search parameters to be passed with the `similarity_search` method. See the documentation for the specific vectorstore you are using to see what parameters are supported. As an example [Pinecone](https://python.langchain.com/api_reference/pinecone/vectorstores/langchain_pinecone.vectorstores.PineconeVectorStore.html#langchain_pinecone.vectorstores.PineconeVectorStore.similarity_search) several parameters that are important general concepts: Many vectorstores support [the `k`](https://python.langchain.com/docs/integrations/vectorstores/pinecone/#query-directly), which controls the number of Documents to return, and `filter`, which allows for filtering documents by metadata.
 
-This will work with your [LangSmith API key](https://docs.smith.langchain.com/).
+*   `query (str) – Text to look up documents similar to.`
+*   `k (int) – Number of Documents to return. Defaults to 4.`
+*   `filter (dict | None) – Dictionary of argument(s) to filter on metadata`
 
-For example, see the map prompt [here](https://smith.langchain.com/hub/rlm/map-prompt).
+Further reading
 
-```
-from langchain import hubmap_prompt = hub.pull("rlm/map-prompt")
-```
+*   See the [how-to guide](https://python.langchain.com/docs/how_to/vectorstores/) for more details on how to use the `similarity_search` method.
+*   See the [integrations page](https://python.langchain.com/docs/integrations/vectorstores/) for more details on arguments that can be passed in to the `similarity_search` method for specific vectorstores.
 
-### Reduce[​](https://python.langchain.com/docs/tutorials/summarization/#reduce "Direct link to Reduce")
+### Metadata filtering[​](https://python.langchain.com/docs/concepts/vectorstores/#metadata-filtering "Direct link to Metadata filtering")
 
-We also define a prompt that takes the document mapping results and reduces them into a single output.
+While vectorstore implement a search algorithm to efficiently search over _all_ the embedded documents to find the most similar ones, many also support filtering on metadata. This allows structured filters to reduce the size of the similarity search space. These two concepts work well together:
 
-```
-# Also available via the hub: `hub.pull("rlm/reduce-prompt")`reduce_template = """The following is a set of summaries:{docs}Take these and distill it into a final, consolidated summaryof the main themes."""reduce_prompt = ChatPromptTemplate([("human", reduce_template)])
-```
+1.  **Semantic search**: Query the unstructured data directly, often using via embedding or keyword similarity.
+2.  **Metadata search**: Apply structured query to the metadata, filering specific documents.
 
-### Orchestration via LangGraph[​](https://python.langchain.com/docs/tutorials/summarization/#orchestration-via-langgraph "Direct link to Orchestration via LangGraph")
+Vector store support for metadata filtering is typically dependent on the underlying vector store implementation.
 
-Below we implement a simple application that maps the summarization step on a list of documents, then reduces them using the above prompts.
-
-Map-reduce flows are particularly useful when texts are long compared to the context window of a LLM. For long texts, we need a mechanism that ensures that the context to be summarized in the reduce step does not exceed a model's context window size. Here we implement a recursive "collapsing" of the summaries: the inputs are partitioned based on a token limit, and summaries are generated of the partitions. This step is repeated until the total length of the summaries is within a desired limit, allowing for the summarization of arbitrary-length text.
-
-First we chunk the blog post into smaller "sub documents" to be mapped:
+Here is example usage with [Pinecone](https://python.langchain.com/docs/integrations/vectorstores/pinecone/#query-directly), showing that we filter for all documents that have the metadata key `source` with value `tweet`.
 
 ```
-from langchain_text_splitters import CharacterTextSplittertext_splitter = CharacterTextSplitter.from_tiktoken_encoder(    chunk_size=1000, chunk_overlap=0)split_docs = text_splitter.split_documents(docs)print(f"Generated {len(split_docs)} documents.")
+vectorstore.similarity_search(    "LangChain provides abstractions to make working with LLMs easy",    k=2,    filter={"source": "tweet"},)
 ```
 
-```
-Created a chunk of size 1003, which is longer than the specified 1000``````outputGenerated 14 documents.
-```
+Advanced search and retrieval techniques[​](https://python.langchain.com/docs/concepts/vectorstores/#advanced-search-and-retrieval-techniques "Direct link to Advanced search and retrieval techniques")
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-Next, we define our graph. Note that we define an artificially low maximum token length of 1,000 tokens to illustrate the "collapsing" step.
+While algorithms like HNSW provide the foundation for efficient similarity search in many cases, additional techniques can be employed to improve search quality and diversity. For example, [maximal marginal relevance](https://python.langchain.com/v0.1/docs/modules/model_io/prompts/example_selectors/mmr/) is a re-ranking algorithm used to diversify search results, which is applied after the initial similarity search to ensure a more diverse set of results. As a second example, some [vector stores](https://python.langchain.com/docs/integrations/retrievers/pinecone_hybrid_search/) offer built-in [hybrid-search](https://docs.pinecone.io/guides/data/understanding-hybrid-search) to combine keyword and semantic similarity search, which marries the benefits of both approaches. At the moment, there is no unified way to perform hybrid search using LangChain vectorstores, but it is generally exposed as a keyword argument that is passed in with `similarity_search`. See this [how-to guide on hybrid search](https://python.langchain.com/docs/how_to/hybrid/) for more details.
 
-
-
-LangGraph allows the graph structure to be plotted to help visualize its function:
-
-```
-from IPython.display import ImageImage(app.get_graph().draw_mermaid_png())
-```
-
-![Image 13](blob:https://python.langchain.com/e32009840dcd77fbf82e92b3fce23530)
-
-When running the application, we can stream the graph to observe its sequence of steps. Below, we will simply print out the name of the step.
-
-Note that because we have a loop in the graph, it can be helpful to specify a [recursion\_limit](https://langchain-ai.github.io/langgraph/reference/errors/#langgraph.errors.GraphRecursionError) on its execution. This will raise a specific error when the specified limit is exceeded.
-
-```
-async for step in app.astream(    {"contents": [doc.page_content for doc in split_docs]},    {"recursion_limit": 10},):    print(list(step.keys()))
-```
-
-```
-['generate_summary']['generate_summary']['generate_summary']['generate_summary']['generate_summary']['generate_summary']['generate_summary']['generate_summary']['generate_summary']['generate_summary']['generate_summary']['generate_summary']['generate_summary']['generate_summary']['collect_summaries']['collapse_summaries']['collapse_summaries']['generate_final_summary']
-```
-
-
-
-In the corresponding [LangSmith trace](https://smith.langchain.com/public/9d7b1d50-e1d6-44c9-9ab2-eabef621c883/r) we can see the individual LLM calls, grouped under their respective nodes.
-
-### Go deeper[​](https://python.langchain.com/docs/tutorials/summarization/#go-deeper-1 "Direct link to Go deeper")
-
-**Customization**
-
-*   As shown above, you can customize the LLMs and prompts for map and reduce stages.
-
-**Real-world use-case**
-
-*   See [this blog post](https://blog.langchain.dev/llms-to-improve-documentation/) case-study on analyzing user interactions (questions about LangChain documentation)!
-*   The blog post and associated [repo](https://github.com/mendableai/QA_clustering) also introduce clustering as a means of summarization.
-*   This opens up another path beyond the `stuff` or `map-reduce` approaches that is worth considering.
-
-![Image 14: Image description](https://python.langchain.com/assets/images/summarization_use_case_3-896f435bc48194ddaead73043027e16f.png)
-
-Next steps[​](https://python.langchain.com/docs/tutorials/summarization/#next-steps "Direct link to Next steps")
-----------------------------------------------------------------------------------------------------------------
-
-We encourage you to check out the [how-to guides](https://python.langchain.com/docs/how_to/) for more detail on:
-
-*   Other summarization strategies, such as [iterative refinement](https://python.langchain.com/docs/how_to/summarize_refine/)
-*   Built-in [document loaders](https://python.langchain.com/docs/how_to/#document-loaders) and [text-splitters](https://python.langchain.com/docs/how_to/#text-splitters)
-*   Integrating various combine-document chains into a [RAG application](https://python.langchain.com/docs/tutorials/rag/)
-*   Incorporating retrieval into a [chatbot](https://python.langchain.com/docs/how_to/chatbots_retrieval/)
-
+| Name                                                                                                                                                                                                                                            | When to use                                           | Description                                                                                                                                  |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| [Hybrid search](https://python.langchain.com/docs/integrations/retrievers/pinecone_hybrid_search/)                                                                                                                                              | When combining keyword-based and semantic similarity. | Hybrid search combines keyword and semantic similarity, marrying the benefits of both approaches. [Paper](https://arxiv.org/abs/2210.11934). |
+| [Maximal Marginal Relevance (MMR)](https://python.langchain.com/api_reference/pinecone/vectorstores/langchain_pinecone.vectorstores.PineconeVectorStore.html#langchain_pinecone.vectorstores.PineconeVectorStore.max_marginal_relevance_search) | When needing to diversify search results.             | MMR attempts to diversify the results of a search to avoid returning similar and redundant documents.                                        |
