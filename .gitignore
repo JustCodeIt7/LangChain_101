@@ -165,3 +165,21 @@ cython_debug/
 .aider*
 
 # LangChain_Apps/LangChain_Doc_Summerization/docs/
+
+LangChain_Apps/LangChain_Doc_Summerization/docs/dep.pdf
+
+LangChain_Apps/LangChain_Doc_Summerization/sum-pdf-dev copy.py
+# ignore all python files ending in dev.py abd all directories ending in -dev
+*dev.py
+*dev/
+
+# ignore all python files ending in -dev. abd all directories ending in -dev
+*-dev.
+*copy.py
+*-dev.ipynb
+*-dev.md
+*-dev.py
+*-dev/
+
+
+*dev.md

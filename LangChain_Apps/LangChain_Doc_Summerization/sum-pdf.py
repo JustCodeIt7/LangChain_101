@@ -10,10 +10,10 @@ from langchain.schema import HumanMessage
 
 def summarize_pdf(
     pdf_path: str,
-    base_url="localhost:11434",
+    base_url="james-linux.local:11434",
     openai_api_key: str = None,
-    model_name: str = "qwen2.5:0.5b",
-    chunk_size: int = 2000,
+    model_name: str = "phi4",
+    chunk_size: int = 4000,
     chunk_overlap: int = 200,
 ):
     """
@@ -70,15 +70,6 @@ def summarize_pdf(
     # summary_result = summary_result.content
     summary_result = summary_result["output_text"]
 
-    #     # Ensure summary_result is a string
-    #     if isinstance(summary_result, dict):
-    #         summary_result = summary_result.get("content", "")
-    #     elif not isinstance(summary_result, str):
-    #         raise ValueError("Unexpected format for summary_result.")
-    # except Exception as e:
-    #     print(f"An error occurred during summarization: {e}")
-    #     raise
-
     # 7. Optionally, we can create a bullet-point list of key insights
     key_points_prompt = (
         "Given the following summary, extract the most important points as bullet points. "
@@ -96,20 +87,27 @@ def summarize_pdf(
     # key_points = key_points_response[0].content.strip()
     key_points = key_points_response.content
 
-    # try:
-
-    #     if isinstance(key_points_response, list) and len(key_points_response) > 0:
-    #         if hasattr(key_points_response[0], "content"):
-    #             key_points = key_points_response[0].content.strip()
-    #         else:
-    #             raise ValueError("Unexpected response format from Ollama.")
-    #     else:
-    #         raise ValueError("Unexpected response format from Ollama.")
-    # except Exception as e:
-    #     print(f"An error occurred while extracting key points: {e}")
-    #     raise
-
     return {"detailed_summary": summary_result.strip(), "key_points": key_points}
+
+
+def save_summary(summary_data: dict, output_path: str) -> None:
+    """Save summary data to a markdown file."""
+    try:
+        with open(output_path, "w", encoding="utf-8") as f:
+            # Write title
+            f.write("# Document Summary\n\n")
+
+            # Write detailed summary section
+            f.write("## Detailed Summary\n\n")
+            f.write(f"{summary_data['detailed_summary']}\n\n")
+
+            # Write key points section
+            f.write("## Key Points\n\n")
+            f.write(f"{summary_data['key_points']}\n")
+
+    except Exception as e:
+        print(f"Error saving summary to {output_path}: {e}")
+        raise
 
 
 if __name__ == "__main__":
@@ -118,13 +116,15 @@ if __name__ == "__main__":
     # set working directory to file location
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
     print(f"Current working directory: {os.getcwd()}")
-    PDF_PATH = "./docs/somatosensory.pdf"
+    PDF_PATH = "./docs/dep.pdf"
     try:
         summary_data = summarize_pdf(pdf_path=PDF_PATH)
 
-        print("\n===== DETAILED SUMMARY =====\n")
-        print(summary_data["detailed_summary"])
-        print("\n===== KEY POINTS =====\n")
-        print(summary_data["key_points"])
+        # Generate output filename from input PDF
+        output_path = PDF_PATH.replace(".pdf", "_summary.md")
+        save_summary(summary_data, output_path)
+
+        print(f"\nSummary saved to: {output_path}")
+
     except Exception as e:
         print(f"An error occurred in the main execution: {e}")
