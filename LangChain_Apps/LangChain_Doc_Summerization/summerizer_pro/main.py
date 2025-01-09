@@ -1,5 +1,10 @@
 # main.py
 import os
+from tracemalloc import start
+from turtle import st
+
+from attr import s
+from sympy import im
 from config import (
     BASE_URL,
     MODEL_NAME,
@@ -21,6 +26,7 @@ def summarize_pdf(
     chunk_size: int = CHUNK_SIZE,
     chunk_overlap: int = CHUNK_OVERLAP,
 ) -> dict:
+    print(f"Starting PDF summarization for {pdf_path}")
     if not OPENAI_API_KEY:
         raise ValueError(
             "OpenAI API key not found. Set it in your environment variables or pass it in."
@@ -32,6 +38,7 @@ def summarize_pdf(
     detailed_summary = summarize_documents(llm, split_docs)
     key_points = extract_key_points(llm, detailed_summary)
 
+    print("PDF summarization complete")
     return {"detailed_summary": detailed_summary, "key_points": key_points}
 
 
@@ -41,6 +48,7 @@ def main():
         print(f"Current working directory: {os.getcwd()}")
 
         PDF_PATH = "./docs/dep.pdf"
+        print(f"Starting summarization for {PDF_PATH}")
         summary_data = summarize_pdf(pdf_path=PDF_PATH)
 
         output_path = PDF_PATH.replace(".pdf", "_summary.md")
@@ -53,4 +61,9 @@ def main():
 
 
 if __name__ == "__main__":
+    import time
+
+    start = time.time()
     main()
+    print(f"Time taken: {time.time() - start}")
+    print(MODEL_NAME)

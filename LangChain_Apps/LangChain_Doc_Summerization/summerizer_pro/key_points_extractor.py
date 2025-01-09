@@ -3,6 +3,7 @@ from langchain.schema import HumanMessage
 
 
 def extract_key_points(llm, summary: str) -> str:
+    print("Extracting key points from summary")
     key_points_prompt = (
         "Given the following summary, extract the most important points as bullet points. "
         "Ensure each point is concise and captures essential information:\n\n"
@@ -12,4 +13,5 @@ def extract_key_points(llm, summary: str) -> str:
 
     key_points_message = [HumanMessage(content=key_points_prompt)]
     key_points_response = llm.invoke(key_points_message)
+    print("Key points extraction complete")
     return key_points_response.content.strip()
