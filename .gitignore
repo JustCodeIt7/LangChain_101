@@ -163,3 +163,5 @@ cython_debug/
 !/02-Data-Connections/faiss/
 02-Data-Connections/chroma/chroma.sqlite3
 .aider*
+
+# LangChain_Apps/LangChain_Doc_Summerization/docs/
