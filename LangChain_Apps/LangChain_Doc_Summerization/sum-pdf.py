@@ -13,8 +13,8 @@ def summarize_pdf(
     base_url="james-linux.local:11434",
     openai_api_key: str = None,
     model_name: str = "phi4",
-    chunk_size: int = 4000,
-    chunk_overlap: int = 200,
+    chunk_size: int = 3000,
+    chunk_overlap: int = 300,
 ):
     """
     Summarize and extract key points from a large PDF file using LangChain.
