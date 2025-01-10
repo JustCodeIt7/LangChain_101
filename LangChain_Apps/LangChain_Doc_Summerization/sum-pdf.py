@@ -62,6 +62,10 @@ def summarize_pdf(
         # Clean up text if needed
         page_text = re.sub(r"\s+", " ", page_text.strip())
 
+        # print every 10 pages
+        if len(docs) % 10 == 0:
+            print(f"Processed {len(docs)} pages...")
+
         for chunk in text_splitter.split_text(page_text):
             docs.append(Document(page_content=chunk))
 
@@ -157,7 +161,7 @@ if __name__ == "__main__":
     # set working directory to file location
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
     print(f"Current working directory: {os.getcwd()}")
-    PDF_PATH = "./docs/somatosensory.pdf"
+    PDF_PATH = "./docs/dep.pdf"
     try:
         summary_data = summarize_pdf(
             pdf_path=PDF_PATH,
