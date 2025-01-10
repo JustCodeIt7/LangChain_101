@@ -152,8 +152,8 @@ if __name__ == "__main__":
 
     start = time.time()
     # model_name = "qwen2.5:0.5b"
-    model_name = "qwen2.5"
-    # model_name = "llama3.2"
+    # model_name = "qwen2.5"
+    model_name = "llama3.2"
     chunk_size = 4000
     chunk_overlap = 200
     max_tokens = 64_000
