@@ -8,7 +8,6 @@ from langchain.docstore.document import Document
 from langchain_ollama import ChatOllama
 from langchain_community.document_loaders import PyPDFLoader
 from langchain.schema import HumanMessage
-from langchain.prompts import PromptTemplate
 
 
 def summarize_pdf(
@@ -68,20 +67,12 @@ def summarize_pdf(
     # save docs to markdown file for detailed notes
     # detailed_notes = "\n\n".join([doc.page_content for doc in docs])
     # save_detailed_notes(detailed_notes, pdf_path.replace(".pdf", "_detailed_notes.md"))
-    my_summary_prompt_template = PromptTemplate(
-        input_variables=["text"],
-        template="""
-    You are an expert summarizer. Carefully read the following text:
-    {text}
-    Generate a thorough, extended summary highlighting all essential details. make sure the summary is comprehensive and detailed.
-    """,
-    )
+
     # 5. Create a summarization chain
     summarize_chain = load_summarize_chain(
         llm,
         chain_type="map_reduce",
-        map_prompt=my_summary_prompt_template,
-        combine_prompt=my_summary_prompt_template,
+        prompt_template="Summarize the following text with a focus on detail, nuance, and completeness.",
         verbose=False,
     )
 
