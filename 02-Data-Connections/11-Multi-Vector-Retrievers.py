@@ -1,13 +1,33 @@
-# %% [markdown]
+# %%
 # # Multi Query Retrievers
+import os
+import sys
+
+# Set the working directory to the directory of the current file
+current_file_path = os.getcwd()
+current_dir = os.path.dirname(current_file_path)  # Extract the directory from the path
+os.chdir(current_dir)  # Change the working directory to the file's directory
+
+# Optional: Add the directory to the system path (useful for module imports)
+sys.path.append(current_dir)
+
+# Verify the working directory (for debugging purposes)
+print(f"Working directory set to: {current_dir}")
+
 
 # %%
 from langchain.storage import InMemoryByteStore
+
+
 from langchain_chroma import Chroma
 from langchain_community.document_loaders import TextLoader
 from langchain_openai import OpenAIEmbeddings
 from langchain_ollama import OllamaEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+
+import uuid
+
+from langchain.retrievers.multi_vector import MultiVectorRetriever
 
 loaders = [
     TextLoader("data/langchain.md"),
@@ -21,16 +41,12 @@ docs = text_splitter.split_documents(docs)
 
 # The vectorstore to use to index the child chunks
 vectorstore = Chroma(
-    collection_name="full_documents", embedding_function=OllamaEmbeddings(model='snowflake-arctic-embed:33m')
+    collection_name="full_documents",
+    embedding_function=OllamaEmbeddings(model="snowflake-arctic-embed:33m"),
 )
 
-# %% [markdown]
-# ## Smaller chunks
-
 # %%
-import uuid
 
-from langchain.retrievers.multi_vector import MultiVectorRetriever
 
 # The storage layer for the parent documents
 store = InMemoryByteStore()
@@ -61,12 +77,12 @@ for i, doc in enumerate(docs):
 retriever.vectorstore.add_documents(sub_docs)
 retriever.docstore.mset(list(zip(doc_ids, docs)))
 
+
 # %%
 retriever.vectorstore.similarity_search("LangChain")[0]
 
 # %%
 len(retriever.invoke("LangChain")[0].page_content)
-
 
 
 # %%
@@ -76,22 +92,15 @@ retriever.search_type = SearchType.mmr
 
 len(retriever.invoke("LangChain")[0].page_content)
 
-# %% [markdown]
-# ## Associating summaries with a document for retrieval
 
 # %%
-import getpass
-import os
-from langchain_openai import ChatOpenAI
 from langchain_ollama import ChatOllama
-# llm = ChatOpenAI(model="gpt-4o-mini")
-llm= ChatOllama(model='llama3.2:1b')
 
+# llm = ChatOpenAI(model="gpt-4o-mini")
+llm = ChatOllama(model="llama3.2:1b")
 
 
 # %%
-import uuid
-
 from langchain_core.documents import Document
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
@@ -104,10 +113,7 @@ chain = (
 )
 
 
-
 # %%
-import uuid
-
 from langchain_core.documents import Document
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
@@ -138,13 +144,11 @@ retriever = MultiVectorRetriever(
 doc_ids = [str(uuid.uuid4()) for _ in docs]
 
 summary_docs = [
-    Document(page_content=s, metadata={id_key: doc_ids[i]})
-    for i, s in enumerate(summaries)
+    Document(page_content=s, metadata={id_key: doc_ids[i]}) for i, s in enumerate(summaries)
 ]
 
 retriever.vectorstore.add_documents(summary_docs)
 retriever.docstore.mset(list(zip(doc_ids, docs)))
-
 
 
 # %%
@@ -156,7 +160,6 @@ print(sub_docs[0])
 retrieved_docs = retriever.invoke("LangChain")
 
 len(retrieved_docs[0].page_content)
-
 
 
 # %%
