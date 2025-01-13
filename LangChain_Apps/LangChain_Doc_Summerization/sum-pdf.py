@@ -67,6 +67,7 @@ def summarize_pdf(
             print(f"Processed {len(docs)} pages...")
 
         for chunk in text_splitter.split_text(page_text):
+
             docs.append(Document(page_content=chunk))
 
     # save docs to markdown file for detailed notes
@@ -154,7 +155,7 @@ if __name__ == "__main__":
     # model_name = "qwen2.5:0.5b"
     # model_name = "qwen2.5"
     model_name = "llama3.2"
-    chunk_size = 4000
+    chunk_size = 2000
     chunk_overlap = 200
     max_tokens = 64_000
     print(f"Starting PDF summarization with model: {model_name}")
@@ -162,6 +163,7 @@ if __name__ == "__main__":
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
     print(f"Current working directory: {os.getcwd()}")
     PDF_PATH = "./docs/dep.pdf"
+    PDF_PATH = "./docs/somatosensory.pdf"
     try:
         summary_data = summarize_pdf(
             pdf_path=PDF_PATH,
