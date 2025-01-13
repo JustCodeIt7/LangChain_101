@@ -155,7 +155,7 @@ calc_cube = RunnableLambda(calc_cube)
 calc_reciprocal = RunnableLambda(calc_reciprocal)
 
 chain = calc_cube | calc_reciprocal
-print(chain.invoke(2))  # Output: 0.125
+print(chain.invoke(2))  # Output: 0.1chain = calc_cube | calc_reciprocal
 
 #%%
 
