@@ -18,15 +18,12 @@ print(f"Working directory set to: {current_dir}")
 # %%
 from langchain.storage import InMemoryByteStore
 
-
 from langchain_chroma import Chroma
 from langchain_community.document_loaders import TextLoader
 from langchain_openai import OpenAIEmbeddings
 from langchain_ollama import OllamaEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-
 import uuid
-
 from langchain.retrievers.multi_vector import MultiVectorRetriever
 
 loaders = [
@@ -46,8 +43,6 @@ vectorstore = Chroma(
 )
 
 # %%
-
-
 # The storage layer for the parent documents
 store = InMemoryByteStore()
 id_key = "doc_id"
