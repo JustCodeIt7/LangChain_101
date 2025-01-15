@@ -1,5 +1,6 @@
 # %%
 import inspect
+from itertools import chain
 
 from langchain import OpenAI
 
@@ -15,6 +16,9 @@ from langchain.callbacks import get_openai_callback
 import tiktoken
 from langchain_ollama import ChatOllama, OllamaEmbeddings
 from rich import print as pp
+from langchain_core.runnables.history import RunnableWithMessageHistory
+from langchain.memory import ConversationBufferMemory
+
 
 # %%
 
@@ -28,12 +32,19 @@ def count_tokens(chain, query):
         print(f"Spent a total of {cb.total_tokens} tokens")
     return result
 
+#%%
+
+
 # %%
 conversation = ConversationChain(
     llm=llm,
 )
+# conversation = RunnableWithMessageHistory(
+#     llm=llm,
+# )
 
 pp(conversation.prompt.template)
+
 # %%
 
 print(inspect.getsource(conversation._call), inspect.getsource(conversation.apply))
@@ -71,8 +82,6 @@ conversation_sum = ConversationChain(llm=llm, memory=ConversationSummaryMemory(l
 print(conversation_sum.memory.prompt.template)
 # %%
 
-# without count_tokens we'd call `conversation_sum("Hello AI, how are you today?")`
-# but let's keep track of our tokens:
 count_tokens(conversation_sum, "Hello AI, how are you today?")
 
 count_tokens(
