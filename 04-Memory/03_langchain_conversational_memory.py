@@ -1,28 +1,23 @@
 # %%
 import inspect
-from itertools import chain
-
-from langchain import OpenAI
-
-from langchain.chains import LLMChain, ConversationChain
-from langchain.chains.conversation.memory import (
-    ConversationBufferMemory,
-    ConversationSummaryMemory,
-    ConversationBufferWindowMemory,
-    ConversationKGMemory,
-)
-from langchain.callbacks import get_openai_callback
 
 import tiktoken
-from langchain_ollama import ChatOllama, OllamaEmbeddings
-from rich import print as pp
-from langchain_core.runnables.history import RunnableWithMessageHistory
+from langchain.callbacks import get_openai_callback
+from langchain.chains import ConversationChain, LLMChain
+from langchain.chains.conversation.memory import (
+    ConversationBufferMemory,
+    ConversationBufferWindowMemory,
+    ConversationKGMemory,
+    ConversationSummaryMemory,
+)
 from langchain.memory import ConversationBufferMemory
-
+from langchain_ollama import ChatOllama
+from rich import print as pp
 
 # %%
 
 llm = ChatOllama(model="llama3.2:1b")
+
 
 # %%
 def count_tokens(chain, query):
@@ -32,7 +27,8 @@ def count_tokens(chain, query):
         print(f"Spent a total of {cb.total_tokens} tokens")
     return result
 
-#%%
+
+# %%
 
 
 # %%
@@ -62,9 +58,7 @@ count_tokens(
     "I'm interested in learning about the advancements in AI technology.",
 )
 
-count_tokens(
-    conversation_buf, "Can you explain how AI can be used in healthcare?"
-)
+count_tokens(conversation_buf, "Can you explain how AI can be used in healthcare?")
 
 count_tokens(
     conversation_buf, "What are some challenges faced by AI in real-world applications?"
@@ -89,9 +83,7 @@ count_tokens(
     "I'm interested in learning about the advancements in AI technology.",
 )
 
-count_tokens(
-    conversation_sum, "Can you explain how AI can be used in healthcare?"
-)
+count_tokens(conversation_sum, "Can you explain how AI can be used in healthcare?")
 
 count_tokens(
     conversation_sum, "What are some challenges faced by AI in real-world applications?"
@@ -114,7 +106,9 @@ print(
 # %%
 
 
-conversation_bufw = ConversationChain(llm=llm, memory=ConversationBufferWindowMemory(k=1))
+conversation_bufw = ConversationChain(
+    llm=llm, memory=ConversationBufferWindowMemory(k=1)
+)
 
 count_tokens(conversation_bufw, "Hello AI, how are you today?")
 
@@ -123,12 +117,11 @@ count_tokens(
     "I'm interested in learning about the advancements in AI technology.",
 )
 
-count_tokens(
-    conversation_bufw, "Can you explain how AI can be used in healthcare?"
-)
+count_tokens(conversation_bufw, "Can you explain how AI can be used in healthcare?")
 
 count_tokens(
-    conversation_bufw, "What are some challenges faced by AI in real-world applications?"
+    conversation_bufw,
+    "What are some challenges faced by AI in real-world applications?",
 )
 
 count_tokens(conversation_bufw, "Can you remind me what we discussed about AI earlier?")
@@ -151,7 +144,9 @@ print(
 
 conversation_kg = ConversationChain(llm=llm, memory=ConversationKGMemory(llm=llm))
 
-count_tokens(conversation_kg, "I love programming in Python and exploring new technologies!")
+count_tokens(
+    conversation_kg, "I love programming in Python and exploring new technologies!"
+)
 # %%
 
 conversation_kg.memory.kg.get_triples()
