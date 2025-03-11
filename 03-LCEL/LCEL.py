@@ -4,11 +4,10 @@
 from typing import Any, Dict, List
 
 from dotenv import load_dotenv
-from langchain_core.output_parsers import JsonOutputParser, StrOutputParser
+from langchain_core.output_parsers import StrOutputParser
 
 # Import LangChain components
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.pydantic_v1 import BaseModel, Field
 from langchain_core.runnables import (
     RunnableLambda,
     RunnableParallel,
