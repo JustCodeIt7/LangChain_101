@@ -132,7 +132,7 @@ for i, msg in enumerate(conversation_messages, 1):
 console.print(f"\n[purple]Final message count:[/purple] {len(messages)}\n")
 
 # %%
-################################ Example 4: Fractional Limits ################################
+################## Example 4: Fractional Limits ##################
 
 console.print(Panel.fit("Example 4: Fractional Limits (Percentage of Context)", style="bold cyan"))
 
