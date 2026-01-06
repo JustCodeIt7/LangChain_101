@@ -141,9 +141,6 @@ console.print(f"\n[purple]Final message count:[/purple] {len(messages)}\n")
 console.print(Panel.fit("Example 4: Fractional Limits (Percentage of Context)", style="bold cyan"))
 # need to set if using ollama
 model.profile = {"max_input_tokens": 2048}
-model = ChatOpenAI(model="gpt-4o-mini")
-
-
 # This agent triggers based on context window usage
 # Note: tinyllama has a context window of 2048.
 # We use 0.05 (5%) here just so you can see it trigger quickly in this demo.
