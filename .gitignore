@@ -188,3 +188,5 @@ LangChain_Apps/LangChain_Doc_Summerization/summerizer_pro/docs/dep_summary.md
 LangChain_Apps/LangChain_Doc_Summerization/docs/dep_summary.md
 .DS_Store
 archive/
+06-Middleware/13-Summarization/13-Summarization.py
+.gitignore

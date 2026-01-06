@@ -137,16 +137,19 @@ console.print(f"\n[purple]Final message count:[/purple] {len(messages)}\n")
 console.print(Panel.fit("Example 4: Fractional Limits (Percentage of Context)", style="bold cyan"))
 
 # Manually define model profile for middleware token calculations
+# Note: llama3.2 has a context window of 2048 tokens
 model.profile = {"max_input_tokens": 2048}
 
 # Use fractional triggers to manage memory relative to the model's capacity
+# Note: We use low percentages (5% and 2%) here so you can see it trigger quickly in this demo.
+# With agent overhead (system prompts, scaffolding), even small conversations fill the context.
 agent_fractional = create_agent(
     model=model,
     middleware=[
         SummarizationMiddleware(
             model=model,
-            trigger=("fraction", 0.8),  # Trigger when 80% of context is consumed
-            keep=("fraction", 0.3),  # Reduce usage down to 30% during compression
+            trigger=("fraction", 0.05),  # Trigger when 5% of context is consumed (~102 tokens)
+            keep=("fraction", 0.02),  # Reduce usage down to 2% during compression (~41 tokens)
         ),
     ],
 )
