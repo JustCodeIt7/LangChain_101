@@ -4,6 +4,8 @@
 from langchain.agents import create_agent
 from langchain.agents.middleware import SummarizationMiddleware
 from langchain_ollama import ChatOllama
+from langchain_groq import ChatGroq
+from langchain_openai import ChatOpenAI
 from langchain.messages import HumanMessage
 from rich import print
 from rich.console import Console
@@ -16,7 +18,13 @@ load_dotenv()
 # Initialize the LLM and UI components
 # Ensure you have ollama running: `ollama run tinyllama`
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
-model = ChatOllama(model="tinyllama", ollama_url=OLLAMA_URL)
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+print(f"Using Ollama URL: {OLLAMA_URL}")
+model = ChatOllama(model="llama3.2", base_url=OLLAMA_URL, max_input_tokens=2048)
+
+# Model profile information is required for fractional token limits
+# Standard models may not have this attribute set by default.
+
 
 console = Console()
 
@@ -130,7 +138,11 @@ console.print(f"\n[purple]Final message count:[/purple] {len(messages)}\n")
 # %%
 ################################ Example 4: Fractional Limits ################################
 
-console.print(Panel.fit("Example 4: Fractional Limits (Percentage of Context)", style="bold blue"))
+console.print(Panel.fit("Example 4: Fractional Limits (Percentage of Context)", style="bold cyan"))
+# need to set if using ollama
+model.profile = {"max_input_tokens": 2048}
+model = ChatOpenAI(model="gpt-4o-mini")
+
 
 # This agent triggers based on context window usage
 # Note: tinyllama has a context window of 2048.
@@ -141,9 +153,9 @@ agent_fractional = create_agent(
         SummarizationMiddleware(
             model=model,
             # Trigger when 5% of the context window is filled
-            trigger=("fraction", 0.1),
+            trigger=("fraction", 0.8),
             # When condensing, aim to reduce it to 2% of context
-            keep=("fraction", 0.02),
+            keep=("fraction", 0.3),
         ),
     ],
 )
@@ -162,7 +174,7 @@ for i, msg in enumerate(conversation_messages, 1):
     if any("summary" in str(m.content).lower() for m in messages):
         console.print("  [green]✓ Summarization triggered by context fraction![/green]")
 
-console.print(f"\n[blue]Final message count:[/blue] {len(messages)}")
+console.print(f"\n[magenta]Final message count:[/magenta] {len(messages)}")
 console.print("[green]Demonstration Complete![/green]\n")
 
 # %%
