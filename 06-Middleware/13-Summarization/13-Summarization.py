@@ -1,6 +1,5 @@
 # %%
 ################################ Environment Setup ################################
-
 from langchain.agents import create_agent
 from langchain.agents.middleware import SummarizationMiddleware
 from langchain_ollama import ChatOllama
@@ -15,20 +14,16 @@ import os
 
 load_dotenv()
 
-# Initialize the LLM and UI components
-# Ensure you have ollama running: `ollama run tinyllama`
+# Set fallback values for the local Ollama instance
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-print(f"Using Ollama URL: {OLLAMA_URL}")
-model = ChatOllama(model="llama3.2", base_url=OLLAMA_URL, max_input_tokens=2048)
 
-# Model profile information is required for fractional token limits
-# Standard models may not have this attribute set by default.
-
+# Initialize the local LLM with a defined token limit
+model = ChatOllama(model="llama3.2", base_url=OLLAMA_URL)
 
 console = Console()
 
-# Define a sequence of queries to fill the context window
+# Create a sample dataset of prompts to fill the conversation history
 conversation_messages = [
     HumanMessage("Tell me about the history of Ancient Rome in 3 sentences."),
     HumanMessage("Now tell me about Ancient Greece in 3 sentences."),
@@ -42,14 +37,15 @@ conversation_messages = [
 
 console.print(Panel.fit("Example 1: Agent WITHOUT Summarization Middleware", style="bold red"))
 
-# Initialize a standard agent without any history management
+# Instantiate a baseline agent to demonstrate default history growth
 agent_no_summary = create_agent(model=model)
 
 messages = []
 
-# Iterate through the history to demonstrate how context length increases linearly
+# Process prompts sequentially to track how memory expands
 for msg in conversation_messages:
     messages.append(msg)
+    # Perform the inference and retrieve updated history
     result = agent_no_summary.invoke({"messages": messages})
     messages = result["messages"]  # Update history with the full raw exchange
 
@@ -61,19 +57,20 @@ console.print(f"[yellow]Context keeps growing without summarization![/yellow]\n"
 
 console.print(Panel.fit("Example 2: Simple Message Count Trigger", style="bold green"))
 
-# Attach middleware to prune history once it reaches a specific length
+# Wrap the agent with middleware to prune history based on message count
 agent_with_summary = create_agent(
     model=model,
     middleware=[
         SummarizationMiddleware(
             model=model,
-            trigger=("messages", 6),  # Compress history after 6 messages are reached
-            keep=("messages", 3),  # Retain only the 3 most recent interactions
+            trigger=("messages", 6),  # Initiate compression after the 6th message
+            keep=("messages", 3),  # Preserve only the 3 most recent interactions
         ),
     ],
 )
-
+# %%
 messages = []
+# Simulate a turn-based conversation to observe the pruning logic
 for i, msg in enumerate(conversation_messages, 1):
     messages.append(msg)
     result = agent_with_summary.invoke({"messages": messages})
@@ -82,7 +79,7 @@ for i, msg in enumerate(conversation_messages, 1):
     console.print(f"\n[cyan]After Turn {i}:[/cyan]")
     console.print(f"  Messages in context: {len(messages)}")
 
-    # Detect if the middleware injected a summary message into the history
+    # Check for the presence of a summary record in the message list
     if any("summary" in str(m.content).lower() for m in messages):
         console.print("  [green]✓ Summarization triggered![/green]")
 
@@ -93,23 +90,22 @@ console.print(f"\n[yellow]Final message count:[/yellow] {len(messages)}\n")
 
 console.print(Panel.fit("Example 3: Multiple Conditions (Tokens OR Messages)", style="bold purple"))
 
-# This agent triggers if EITHER:
-# 1. Token count exceeds 200 (set low for demo purposes)
-# 2. Message count reaches 10
+# Configure an agent with hybrid triggers for more robust memory management
 agent_multi_condition = create_agent(
     model=model,
     middleware=[
         SummarizationMiddleware(
             model=model,
             trigger=[
-                ("tokens", 200),  # Trigger if tokens > 1000
-                ("messages", 10),  # OR if messages >= 10
+                ("tokens", 200),  # Compress if the estimated token count exceeds 200
+                ("messages", 10),  # Compress if the message count hits 10
             ],
-            keep=("messages", 3),  # Keep last 3 messages
+            keep=("messages", 3),  # Retain the most recent window of context
         ),
     ],
 )
 
+# %%
 messages = []
 console.print("[yellow]Starting conversation with Multi-Condition Agent...[/yellow]")
 
@@ -118,16 +114,16 @@ for i, msg in enumerate(conversation_messages, 1):
     result = agent_multi_condition.invoke({"messages": messages})
     messages = result["messages"]
 
-    # Calculate rough token count (approximation for display)
+    # Calculate an approximate token count based on string length
     estimated_tokens = sum(len(str(m.content)) / 4 for m in messages)
 
     console.print(f"\n[cyan]After Turn {i}:[/cyan]")
     console.print(f"  Messages: {len(messages)}")
     console.print(f"  Est. Tokens: ~{int(estimated_tokens)}")
 
+    # Identify which condition likely caused the history to collapse
     if any("summary" in str(m.content).lower() for m in messages):
         console.print("  [green]✓ Summarization triggered![/green]")
-        # Check why it likely triggered
         if len(messages) < 10:
             console.print("  [dim](Likely triggered by Token limit)[/dim]")
         else:
@@ -139,24 +135,23 @@ console.print(f"\n[purple]Final message count:[/purple] {len(messages)}\n")
 ################################ Example 4: Fractional Limits ################################
 
 console.print(Panel.fit("Example 4: Fractional Limits (Percentage of Context)", style="bold cyan"))
-# need to set if using ollama
+
+# Manually define model profile for middleware token calculations
 model.profile = {"max_input_tokens": 2048}
-# This agent triggers based on context window usage
-# Note: tinyllama has a context window of 2048.
-# We use 0.05 (5%) here just so you can see it trigger quickly in this demo.
+
+# Use fractional triggers to manage memory relative to the model's capacity
 agent_fractional = create_agent(
     model=model,
     middleware=[
         SummarizationMiddleware(
             model=model,
-            # Trigger when 5% of the context window is filled
-            trigger=("fraction", 0.8),
-            # When condensing, aim to reduce it to 2% of context
-            keep=("fraction", 0.3),
+            trigger=("fraction", 0.8),  # Trigger when 80% of context is consumed
+            keep=("fraction", 0.3),  # Reduce usage down to 30% during compression
         ),
     ],
 )
 
+# %%
 messages = []
 console.print("[yellow]Starting conversation with Fractional Agent...[/yellow]")
 
