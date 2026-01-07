@@ -12,6 +12,30 @@ from langgraph.checkpoint.memory import InMemorySaver
 from langchain_core.runnables import RunnableConfig
 from rich import print
 
+
+# %%
+def get_human_approval(action_name: str, details: dict) -> str:
+    """
+    Simple interactive approval function.
+    Returns: 'approve' or 'reject'
+    """
+    print("\n" + "=" * 50)
+    print("🔔 HUMAN APPROVAL REQUIRED")
+    print("=" * 50)
+    print(f"Action: {action_name}")
+    print("Details: ")
+    print(details)
+    print("=" * 50)
+
+    while True:
+        decision = input("Enter 'approve'/'1' or 'reject'/'0': ").lower().strip()
+        if decision in ["approve", "1"]:
+            return "approve"
+        elif decision in ["reject", "0"]:
+            return "reject"
+        print("Invalid input. Please enter 'approve'/'1' or 'reject'/'0'.")
+
+
 # %%
 # =============================================================================
 # Example 1: Email Management with Selective Interrupts
@@ -40,10 +64,27 @@ email_agent = create_agent(
     ],
 ).with_config(RunnableConfig(configurable={"thread_id": "email_1"}))
 
-result = email_agent.invoke({
-    "messages": [("user", "Read email 12345 and draft a confirmation reply")]
-})
-print(result)
+# Initial invocation
+print("\nStarting email agent...")
+config = RunnableConfig(configurable={"thread_id": "email_1"})
+result = email_agent.invoke({"messages": [("user", "Read email 12345 and send a reply confirming the meeting")]})
+
+# Check if interrupted (waiting for approval)
+state = email_agent.get_state(config)
+if state.next:  # Agent is interrupted
+    print("\n⚠️  Agent interrupted! Requires human approval.")
+
+    # Get human decision
+    decision = get_human_approval("send_email_tool", state.tasks[0])
+
+    if decision == "approve":
+        print("\n✓ Approved! Continuing...")
+        result = email_agent.invoke(None)  # Continue execution
+        print("\nFinal Result:", result)
+    else:
+        print("\n✗ Rejected!")
+else:
+    print("\nFinal Result:", result)
 
 # %%
 # =============================================================================
@@ -53,7 +94,7 @@ print("\n=== EXAMPLE 2: Database Operations ===\n")
 
 def query_database_tool(query: str) -> str:
     """Execute a SELECT query."""
-    return f"Query result: [user1, user2, user3] (3 rows)"
+    return "Query result: [user1, user2, user3] (3 rows)"
 
 def delete_records_tool(table: str, condition: str) -> str:
     """Delete records (requires human approval)."""
@@ -78,61 +119,23 @@ db_agent = create_agent(
     ],
 ).with_config(RunnableConfig(configurable={"thread_id": "db_1"}))
 
-result = db_agent.invoke({
-    "messages": [("user", "Find inactive users and delete accounts older than 2 years")]
-})
-print(result)
+# Initial invocation
+print("\nStarting database agent...")
+config = RunnableConfig(configurable={"thread_id": "db_1"})
+result = db_agent.invoke({"messages": [("user", "Find inactive users and delete accounts older than 2 years")]})
 
-# %%
-# =============================================================================
-# Example 3: Content Publishing with Review Workflow
-# =============================================================================
-print("\n=== EXAMPLE 3: Content Publishing ===\n")
+# Check if interrupted
+state = db_agent.get_state(config)
+if state.next:
+    print("\n⚠️  Agent interrupted! Requires human approval.")
 
-def draft_content_tool(topic: str, length: int = 100) -> str:
-    """Generate draft content."""
-    return f"Draft: '{topic} is important because...' ({length} words)"
+    decision = get_human_approval("delete_records_tool", state.tasks[0])
 
-def publish_content_tool(content: str, platform: str) -> str:
-    """Publish content (requires human review)."""
-    return f"✓ Published to {platform}: {content[:50]}..."
-
-def schedule_post_tool(content: str, time: str) -> str:
-    """Schedule a post (requires human review)."""
-    return f"✓ Scheduled for {time}: {content[:50]}..."
-
-content_agent = create_agent(
-    model="gpt-4o",
-    tools=[draft_content_tool, publish_content_tool, schedule_post_tool],
-    checkpointer=InMemorySaver(),
-    middleware=[
-        HumanInTheLoopMiddleware(
-            interrupt_on={
-                "publish_content_tool": {
-                    "allowed_decisions": ["approve", "edit", "reject"]
-                },
-                "schedule_post_tool": {
-                    "allowed_decisions": ["approve", "edit", "reject"]
-                },
-                "draft_content_tool": False,  # Drafting is safe
-            }
-        ),
-    ],
-).with_config(RunnableConfig(configurable={"thread_id": "content_1"}))
-
-result = content_agent.invoke({
-    "messages": [("user", "Write a post about AI safety and publish it")]
-})
-print(result)
-
-# %%
-"""
-Key Takeaways:
---------------
-1. Set interrupt_on=True for tools that need human approval
-2. Set interrupt_on=False for safe, read-only operations
-3. Use allowed_decisions to specify approval options
-4. Checkpointer is required for middleware to work
-5. Each agent needs a unique thread_id for state management
-"""
-# %%
+    if decision == "approve":
+        print("\n✓ Approved! Continuing...")
+        result = db_agent.invoke(None)
+        print("\nFinal Result:", result)
+    else:
+        print("\n✗ Rejected!")
+else:
+    print("\nFinal Result:", result)
