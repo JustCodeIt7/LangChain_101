@@ -5,6 +5,7 @@ Human-in-the-Loop Middleware Tutorial
 Three practical examples showing how to use HumanInTheLoopMiddleware
 to require human approval for sensitive operations.
 """
+
 from langchain.agents import create_agent
 from langchain.agents.middleware import HumanInTheLoopMiddleware
 from langgraph.checkpoint.memory import InMemorySaver
@@ -13,6 +14,7 @@ from rich import print
 from langchain_ollama import ChatOllama
 import os
 from dotenv import load_dotenv
+from langchain.messages import HumanMessage, SystemMessage
 
 load_dotenv()
 
@@ -21,6 +23,7 @@ model = ChatOllama(model="gpt-oss:20b", temperature=0.1, base_url=base_url)
 
 # %% ############# Approval Logic ###########
 print("\n=== APPROVAL LOGIC DEFINITION ===\n")
+
 def get_human_approval(action_name: str, details: dict) -> str:
     """
     Simple interactive approval function.
@@ -44,13 +47,13 @@ def get_human_approval(action_name: str, details: dict) -> str:
         print("Invalid input. Please enter 'approve'/'1' or 'reject'/'0'.")
 
 
-def check_for_interrupt(state, config):
+def check_for_interrupt(state, tool_name):
     # Process the interruption if the agent state indicates a pause
     if state.next:
         print("\n⚠️  Agent interrupted! Requires human approval.")
 
         # Request user decision for the specific tool execution
-        decision = get_human_approval("send_email_tool", state.tasks[0])
+        decision = get_human_approval(tool_name, state.tasks[0])
 
         if decision == "approve":
             print("\n✓ Approved! Continuing...")
@@ -59,7 +62,6 @@ def check_for_interrupt(state, config):
             print("\n✗ Rejected!")
             return False
     return True
-
 
 # %% ################# Email Management ####################
 print("\n=== EXAMPLE 1: Email Management ===\n")
@@ -88,28 +90,29 @@ email_agent = create_agent(
             }
         ),
     ],
-).with_config(
-    RunnableConfig(configurable={"thread_id": "email_1"})
-)  # Unique thread ID for state tracking
-
-print("\nStarting email agent...")
-# Invoke the agent to read an email and send a reply
-
-result = email_agent.invoke(
-    {"messages": [("user", "Read email 12345 and send a reply confirming the meeting")]}
 )
 
-
-# Use for getting state after invocation
+print("\nStarting email agent...")
+# Configure runnable with a unique thread ID for state tracking
 config = RunnableConfig(configurable={"thread_id": "email_1"})
+
+# Invoke the agent to read an email and send a reply
+result = email_agent.invoke(
+    {
+        "messages": [
+            HumanMessage("Read email 12345 and send a reply confirming the meeting")
+        ]
+    },
+    config=config,
+)
+
 # Retrieve current agent state to evaluate if an interrupt occurred
 state = email_agent.get_state(config)
-check_for_interrupt(state, config)
+check_for_interrupt(state, "send_email_tool")
 
 
 # %% ################# Content Publishing #####################
-
-print("\n=== EXAMPLE 3: Content Publishing ===\n")
+print("\n=== EXAMPLE 2: Content Publishing ===\n")
 
 
 def draft_content_tool(topic: str, length: int = 100) -> str:
@@ -145,17 +148,19 @@ content_agent = create_agent(
             }
         ),
     ],
-).with_config(RunnableConfig(configurable={"thread_id": "content_1"}))
-
+)
+# Configure runnable with a unique thread ID for state tracking
+config = RunnableConfig(configurable={"thread_id": "content_1"})
 
 result = content_agent.invoke(
-    {"messages": [("user", "Write a post about AI safety and publish it")]}
+    {"messages": [HumanMessage("Draft a post about AI safety and publish it on Twitter at 3pm") ]}, config=config
 )
 print(result)
 
 
-config = RunnableConfig(configurable={"thread_id": "content_1"})
 # Inspect the state to trigger human review process
 state = content_agent.get_state(config)
-check_for_interrupt(state, config)
+# print(state)
+check_for_interrupt(state, "schedule_post_tool")
+
 # %%
