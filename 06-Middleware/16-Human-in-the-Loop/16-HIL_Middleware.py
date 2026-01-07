@@ -1,4 +1,4 @@
-#%%
+# %%
 """
 Human-in-the-Loop Middleware Tutorial
 ======================================
@@ -17,11 +17,10 @@ from dotenv import load_dotenv
 load_dotenv()
 
 base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-
 model = ChatOllama(model="gpt-oss:20b", temperature=0.1, base_url=base_url)
 
-# %% #################### Approval Logic ########### 
-
+# %% ############# Approval Logic ###########
+print("\n=== APPROVAL LOGIC DEFINITION ===\n")
 def get_human_approval(action_name: str, details: dict) -> str:
     """
     Simple interactive approval function.
@@ -43,10 +42,11 @@ def get_human_approval(action_name: str, details: dict) -> str:
         elif decision in ["reject", "0"]:
             return "reject"
         print("Invalid input. Please enter 'approve'/'1' or 'reject'/'0'.")
-        
+
+
 def check_for_interrupt(state, config):
     # Process the interruption if the agent state indicates a pause
-    if state.next:  
+    if state.next:
         print("\n⚠️  Agent interrupted! Requires human approval.")
 
         # Request user decision for the specific tool execution
@@ -62,22 +62,24 @@ def check_for_interrupt(state, config):
 
 
 # %% ################# Email Management ####################
-
 print("\n=== EXAMPLE 1: Email Management ===\n")
+
 
 def read_email_tool(email_id: str) -> str:
     """Read an email by its ID."""
     return f"Email {email_id}: 'Meeting tomorrow at 3pm. Can you confirm?'"
 
+
 def send_email_tool(recipient: str, subject: str, body: str) -> str:
     """Send an email (requires human approval)."""
     return f"✓ Email sent to {recipient}: '{subject}'"
+
 
 # Initialize agent with middleware to intercept high-stakes tools
 email_agent = create_agent(
     model=model,
     tools=[read_email_tool, send_email_tool],
-    checkpointer=InMemorySaver(), # Enable state persistence for interruptions
+    checkpointer=InMemorySaver(),  # Enable state persistence for interruptions
     middleware=[
         HumanInTheLoopMiddleware(
             interrupt_on={
@@ -86,12 +88,20 @@ email_agent = create_agent(
             }
         ),
     ],
-).with_config(RunnableConfig(configurable={"thread_id": "email_1"}))
+).with_config(
+    RunnableConfig(configurable={"thread_id": "email_1"})
+)  # Unique thread ID for state tracking
 
 print("\nStarting email agent...")
-config = RunnableConfig(configurable={"thread_id": "email_1"})
-result = email_agent.invoke({"messages": [("user", "Read email 12345 and send a reply confirming the meeting")]})
+# Invoke the agent to read an email and send a reply
 
+result = email_agent.invoke(
+    {"messages": [("user", "Read email 12345 and send a reply confirming the meeting")]}
+)
+
+
+# Use for getting state after invocation
+config = RunnableConfig(configurable={"thread_id": "email_1"})
 # Retrieve current agent state to evaluate if an interrupt occurred
 state = email_agent.get_state(config)
 check_for_interrupt(state, config)
@@ -125,18 +135,26 @@ content_agent = create_agent(
     middleware=[
         HumanInTheLoopMiddleware(
             interrupt_on={
-                "publish_content_tool": {"allowed_decisions": ["approve", "edit", "reject"]},
-                "schedule_post_tool": {"allowed_decisions": ["approve", "edit", "reject"]},
+                "publish_content_tool": {
+                    "allowed_decisions": ["approve", "edit", "reject"]
+                },
+                "schedule_post_tool": {
+                    "allowed_decisions": ["approve", "edit", "reject"]
+                },
                 "draft_content_tool": False,  # Mark as safe for automation
             }
         ),
     ],
 ).with_config(RunnableConfig(configurable={"thread_id": "content_1"}))
-config = RunnableConfig(configurable={"thread_id": "content_1"})
 
-result = content_agent.invoke({"messages": [("user", "Write a post about AI safety and publish it")]})
+
+result = content_agent.invoke(
+    {"messages": [("user", "Write a post about AI safety and publish it")]}
+)
 print(result)
 
+
+config = RunnableConfig(configurable={"thread_id": "content_1"})
 # Inspect the state to trigger human review process
 state = content_agent.get_state(config)
 check_for_interrupt(state, config)
