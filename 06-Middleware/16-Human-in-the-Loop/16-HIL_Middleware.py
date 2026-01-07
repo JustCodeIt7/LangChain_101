@@ -1,11 +1,10 @@
-# %%
+#%%
 """
 Human-in-the-Loop Middleware Tutorial
 ======================================
 Three practical examples showing how to use HumanInTheLoopMiddleware
 to require human approval for sensitive operations.
 """
-
 from langchain.agents import create_agent
 from langchain.agents.middleware import HumanInTheLoopMiddleware
 from langgraph.checkpoint.memory import InMemorySaver
@@ -14,13 +13,15 @@ from rich import print
 from langchain_ollama import ChatOllama
 import os
 from dotenv import load_dotenv
-# Load environment variables from .env file
+
 load_dotenv()
+
 base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 
 model = ChatOllama(model="gpt-oss:20b", temperature=0.1, base_url=base_url)
 
-# %%
+# %% #################### Approval Logic ########### 
+
 def get_human_approval(action_name: str, details: dict) -> str:
     """
     Simple interactive approval function.
@@ -34,6 +35,7 @@ def get_human_approval(action_name: str, details: dict) -> str:
     print(details)
     print("=" * 50)
 
+    # Poll for user input until a valid decision is made
     while True:
         decision = input("Enter 'approve'/'1' or 'reject'/'0': ").lower().strip()
         if decision in ["approve", "1"]:
@@ -43,10 +45,11 @@ def get_human_approval(action_name: str, details: dict) -> str:
         print("Invalid input. Please enter 'approve'/'1' or 'reject'/'0'.")
         
 def check_for_interrupt(state, config):
-    if state.next:  # Agent is interrupted
+    # Process the interruption if the agent state indicates a pause
+    if state.next:  
         print("\n⚠️  Agent interrupted! Requires human approval.")
 
-        # Get human decision
+        # Request user decision for the specific tool execution
         decision = get_human_approval("send_email_tool", state.tasks[0])
 
         if decision == "approve":
@@ -58,10 +61,8 @@ def check_for_interrupt(state, config):
     return True
 
 
-# %%
-# =============================================================================
-# Example 1: Email Management with Selective Interrupts
-# =============================================================================
+# %% ################# Email Management ####################
+
 print("\n=== EXAMPLE 1: Email Management ===\n")
 
 def read_email_tool(email_id: str) -> str:
@@ -72,34 +73,32 @@ def send_email_tool(recipient: str, subject: str, body: str) -> str:
     """Send an email (requires human approval)."""
     return f"✓ Email sent to {recipient}: '{subject}'"
 
+# Initialize agent with middleware to intercept high-stakes tools
 email_agent = create_agent(
-    model="gpt-4o",
+    model=model,
     tools=[read_email_tool, send_email_tool],
-    checkpointer=InMemorySaver(),
+    checkpointer=InMemorySaver(), # Enable state persistence for interruptions
     middleware=[
         HumanInTheLoopMiddleware(
             interrupt_on={
-                "send_email_tool": True,  # Require approval for sending
-                "read_email_tool": False,  # No approval needed for reading
+                "send_email_tool": True,  # Pause execution for this tool
+                "read_email_tool": False,  # Allow automatic execution
             }
         ),
     ],
 ).with_config(RunnableConfig(configurable={"thread_id": "email_1"}))
 
-# Initial invocation
 print("\nStarting email agent...")
 config = RunnableConfig(configurable={"thread_id": "email_1"})
 result = email_agent.invoke({"messages": [("user", "Read email 12345 and send a reply confirming the meeting")]})
 
-# Check if interrupted (waiting for approval)
+# Retrieve current agent state to evaluate if an interrupt occurred
 state = email_agent.get_state(config)
 check_for_interrupt(state, config)
 
 
-# %%
-# =============================================================================
-# Example 2: Content Publishing with Review Workflow
-# =============================================================================
+# %% ################# Content Publishing #####################
+
 print("\n=== EXAMPLE 3: Content Publishing ===\n")
 
 
@@ -118,8 +117,9 @@ def schedule_post_tool(content: str, time: str) -> str:
     return f"✓ Scheduled for {time}: {content[:50]}..."
 
 
+# Configure complex approval workflows with specific allowed decisions
 content_agent = create_agent(
-    model="gpt-4o",
+    model=model,
     tools=[draft_content_tool, publish_content_tool, schedule_post_tool],
     checkpointer=InMemorySaver(),
     middleware=[
@@ -127,7 +127,7 @@ content_agent = create_agent(
             interrupt_on={
                 "publish_content_tool": {"allowed_decisions": ["approve", "edit", "reject"]},
                 "schedule_post_tool": {"allowed_decisions": ["approve", "edit", "reject"]},
-                "draft_content_tool": False,  # Drafting is safe
+                "draft_content_tool": False,  # Mark as safe for automation
             }
         ),
     ],
@@ -137,6 +137,7 @@ config = RunnableConfig(configurable={"thread_id": "content_1"})
 result = content_agent.invoke({"messages": [("user", "Write a post about AI safety and publish it")]})
 print(result)
 
+# Inspect the state to trigger human review process
 state = content_agent.get_state(config)
 check_for_interrupt(state, config)
 # %%
