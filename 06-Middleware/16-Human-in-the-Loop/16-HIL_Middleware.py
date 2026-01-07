@@ -41,6 +41,21 @@ def get_human_approval(action_name: str, details: dict) -> str:
         elif decision in ["reject", "0"]:
             return "reject"
         print("Invalid input. Please enter 'approve'/'1' or 'reject'/'0'.")
+        
+def check_for_interrupt(state, config):
+    if state.next:  # Agent is interrupted
+        print("\n⚠️  Agent interrupted! Requires human approval.")
+
+        # Get human decision
+        decision = get_human_approval("send_email_tool", state.tasks[0])
+
+        if decision == "approve":
+            print("\n✓ Approved! Continuing...")
+            return True
+        else:
+            print("\n✗ Rejected!")
+            return False
+    return True
 
 
 # %%
@@ -78,91 +93,9 @@ result = email_agent.invoke({"messages": [("user", "Read email 12345 and send a 
 
 # Check if interrupted (waiting for approval)
 state = email_agent.get_state(config)
-if state.next:  # Agent is interrupted
-    print("\n⚠️  Agent interrupted! Requires human approval.")
+check_for_interrupt(state, config)
 
-    # Get human decision
-    decision = get_human_approval("send_email_tool", state.tasks[0])
 
-    if decision == "approve":
-        print("\n✓ Approved! Continuing...")
-        result = email_agent.invoke(None)  # Continue execution
-        print("\nFinal Result:", result)
-    else:
-        print("\n✗ Rejected!")
-else:
-    print("\nFinal Result:", result)
-
-# %%
-# =============================================================================
-# Example 2: Database Operations with Critical Action Protection
-# =============================================================================
-print("\n=== EXAMPLE 2: Database Operations ===\n")
-
-def query_database_tool(query: str) -> str:
-    """Execute a SELECT query."""
-    return "Query result: [user1, user2, user3] (3 rows)"
-
-def delete_records_tool(table: str, condition: str) -> str:
-    """Deleting records for the database (requires human approval)."""
-    return f"✓ Deleted records from {table} where {condition}"
-
-def update_records_tool(table: str, updates: str) -> str:
-    """Updating records for the database (requires human approval)."""
-    return f"✓ Updated {table}: {updates}"
-
-db_agent = create_agent(
-    model="gpt-5-nano",
-    tools=[query_database_tool, delete_records_tool, update_records_tool],
-    checkpointer=InMemorySaver(),
-    middleware=[
-        HumanInTheLoopMiddleware(
-            interrupt_on={
-                "delete_records_tool": True,  # Always require approval
-                "update_records_tool": True,  # Always require approval
-                "query_database_tool": False,  # Safe, no approval needed
-            }
-        ),
-    ],
-).with_config(RunnableConfig(configurable={"thread_id": "db_1"}))
-
-# Initial invocation
-print("\nStarting database agent...")
-# config = RunnableConfig(configurable={"thread_id": "db_1"})
-# Try one of these prompts to see different behaviors:
-# 1. Triggers delete_records_tool:
-result = db_agent.invoke({
-    "messages": [("user", "Delete all records from users table where last_login is older than 2 years")]
-})
-# 2. Triggers update_records_tool:
-# result = db_agent.invoke({"messages": [("user", "Update the users table and set status to 'inactive' for inactive accounts")]})
-# 3. No interruption (just queries):
-# result = db_agent.invoke({"messages": [("user", "Find all inactive users in the database")]})
-
-# Check if interrupted
-state = db_agent.get_state(config)
-if state.next:
-    print("\n⚠️  Agent interrupted! Requires human approval.")
-
-    # Detect which tool caused the interruption
-    task_info = state.tasks[0] if state.tasks else {}
-    print(f"\nDebug - Task info: {task_info}")
-
-    decision = get_human_approval("database_operation", task_info)
-
-    if decision == "approve":
-        print("\n✓ Approved! Continuing...")
-        result = db_agent.invoke(None)
-        print("\nFinal Result:", result)
-    else:
-        print("\n✗ Rejected!")
-else:
-    print("\nFinal Result:", result)
-    print("\n⚠️ Note: Agent completed without interruption. This means it either:")
-    print("  - Didn't call any interrupt_on=True tools (update/delete)")
-    print("  - Or only used safe operations (query)")
-
-# %%
 # %%
 # =============================================================================
 # Example 2: Content Publishing with Review Workflow
@@ -199,8 +132,11 @@ content_agent = create_agent(
         ),
     ],
 ).with_config(RunnableConfig(configurable={"thread_id": "content_1"}))
+config = RunnableConfig(configurable={"thread_id": "content_1"})
 
 result = content_agent.invoke({"messages": [("user", "Write a post about AI safety and publish it")]})
 print(result)
 
+state = content_agent.get_state(config)
+check_for_interrupt(state, config)
 # %%
