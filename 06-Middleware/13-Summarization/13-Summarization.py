@@ -1,5 +1,5 @@
 # %%
-################################ Environment Setup ################################
+############################# Environment Setup ##########################
 from langchain.agents import create_agent
 from langchain.agents.middleware import SummarizationMiddleware
 from langchain_ollama import ChatOllama
@@ -11,12 +11,17 @@ from rich.console import Console
 from rich.panel import Panel
 from dotenv import load_dotenv
 import os
+from langsmith import traceable
+import getpass
 
 load_dotenv()
 
 # Set fallback values for the local Ollama instance
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+
+os.environ["LANGCHAIN_TRACING_V2"] = "true"
+os.environ["LANGCHAIN_PROJECT"] = os.getenv("LANGCHAIN_PROJECT", "LangChain_101-Summarization")
 
 # Initialize the local LLM with a defined token limit
 model = ChatOllama(model="llama3.2", base_url=OLLAMA_URL)
@@ -33,7 +38,7 @@ conversation_messages = [
 ]
 
 # %%
-################################ Example 1: WITHOUT Summarization ################################
+##################### Example 1: WITHOUT Summarization ##################
 
 console.print(Panel.fit("Example 1: Agent WITHOUT Summarization Middleware", style="bold red"))
 
@@ -53,9 +58,14 @@ console.print(f"\n[yellow]Total messages in context:[/yellow] {len(messages)}")
 console.print(f"[yellow]Context keeps growing without summarization![/yellow]\n")
 
 # %%
-################################ Example 2: Simple Summarization ################################
+############# Example 2: Simple Summarization and Custom Prompt ##################
 
 console.print(Panel.fit("Example 2: Simple Message Count Trigger", style="bold green"))
+CUSTOM_SUNMMNARY_PROMPT = (
+    "The following is a conversation between a user and an AI assistant. "
+    "Summarize the conversation so far in a concise manner, preserving key details:\n\n"
+    "{messages}\n\nSummary:"
+)
 
 # Wrap the agent with middleware to prune history based on message count
 agent_with_summary = create_agent(
@@ -65,6 +75,7 @@ agent_with_summary = create_agent(
             model=model,
             trigger=("messages", 6),  # Initiate compression after the 6th message
             keep=("messages", 3),  # Preserve only the 3 most recent interactions
+            summary_prompt=CUSTOM_SUNMMNARY_PROMPT,
         ),
     ],
 )
@@ -97,10 +108,11 @@ agent_multi_condition = create_agent(
         SummarizationMiddleware(
             model=model,
             trigger=[
-                ("tokens", 200),  # Compress if the estimated token count exceeds 200
+                ("tokens", 250),  # Compress if the estimated token count exceeds 200
                 ("messages", 10),  # Compress if the message count hits 10
             ],
             keep=("messages", 3),  # Retain the most recent window of context
+            trim_tokens_to_summarize=None # Maximum tokens to keep when preparing messages for the summarization call.
         ),
     ],
 )
@@ -148,7 +160,7 @@ agent_fractional = create_agent(
     middleware=[
         SummarizationMiddleware(
             model=model,
-            trigger=("fraction", 0.05),  # Trigger when 5% of context is consumed (~102 tokens)
+            trigger=("fraction", 0.90),  # Trigger when 5% of context is consumed (~102 tokens)
             keep=("fraction", 0.02),  # Reduce usage down to 2% during compression (~41 tokens)
         ),
     ],
