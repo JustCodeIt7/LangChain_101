@@ -1,45 +1,48 @@
-#%%
+# %%
 from langchain.agents import create_agent
 from langchain.agents.middleware import TodoListMiddleware
 from rich import print
 from langchain.messages import HumanMessage, SystemMessage
 import os
 from dotenv import load_dotenv
+from langgraph.checkpoint.memory import InMemorySaver
 
 ################################ Environment Setup ################################
 
 load_dotenv()
- 
+
 print(os.environ["LANGFUSE_PUBLIC_KEY"])
- 
+
 # Enable LangChain tracing for observability and debugging
 os.environ["LANGCHAIN_TRACING_V2"] = "true"
 os.environ["LANGCHAIN_PROJECT"] = os.getenv("LANGCHAIN_PROJECT", "LangChain_101")
 
-#%%
+# %%
 ################################ Example 1 Basics ################################
 
 # Initialize the agent with task management capabilities
 agent = create_agent(
     model="gpt-4.1-nano",
-    middleware=[TodoListMiddleware()], # Inject middleware to intercept and manage to-do items
+    checkpointer=InMemorySaver(),  # Enable state persistence for interruptions
+    system_prompt="You are a software development assistant. IMPORTANT: When using the write_todos tool, you MUST always provide the COMPLETE list of all todos (including completed ones), not just the one you are changing.",
+    middleware=[
+        TodoListMiddleware()
+    ],  # Inject middleware to intercept and manage to-do items
 )
 
 # Execute the agent with a natural language travel request
 response = agent.invoke(
-   {
-        "messages": [
-            HumanMessage("Plan a trip to Spain for this weekend.")
-        ]
-    })
+    {"messages": [HumanMessage("Plan a trip to Spain for this weekend.")]},
+    config={"configurable": {"thread_id": "trip-001"}},
+)
 
 print(response)
 
-#%%
+# %%
 ################################ Output Processing ################################
 
 print("To-Do List:")
-    
+
 # Extract the final response message from the conversation history
 print(response["messages"][-1].content)
 
@@ -49,26 +52,67 @@ print(response["todos"])
 
 # %%
 # Access specific metadata from the first generated task
-print(response["todos"][0]['content'])
-print(response["todos"][0]['status'])
+print(response["todos"][0]["content"])
+print(response["todos"][0]["status"])
 # %%
 
 
-################################ Example 2  ################################
+################################ Example 2: Completing Todos ################################
 
-# Initialize the agent with task management capabilities
-agent = create_agent(
+# Initialize a new agent for the completion workflow
+agent2 = create_agent(
     model="gpt-4.1-nano",
-    middleware=[TodoListMiddleware()], # Inject middleware to intercept and manage to-do items
+    checkpointer=InMemorySaver(),
+    system_prompt="You are a software development assistant. IMPORTANT: When using the write_todos tool, you MUST always provide the COMPLETE list of all todos (including completed ones), not just the one you are changing.",
+    middleware=[TodoListMiddleware()],
 )
 
-# Execute the agent with a natural language travel request
-response = agent.invoke(
-   {
+# Step 1: Create initial todos with a simple project
+response1 = agent2.invoke(
+    {
         "messages": [
-            HumanMessage("Plan a trip to Spain for this weekend.")
+            HumanMessage(
+                "Create a todo list for preparing a presentation: research topic, create slides, and practice delivery."
+            )
         ]
-    })
+    },
+    config={"configurable": {"thread_id": "presentation-001"}},
+)
 
-print(response)
-#%%
+print("=" * 60)
+print("STEP 1: Initial Todos Created")
+print("=" * 60)
+print(response1["messages"][-1].content)
+print("\nTodos:", response1["todos"])
+
+# %%
+# Step 2: Complete a specific todo by referencing it
+response2 = agent2.invoke(
+    {
+        "messages": [
+            HumanMessage(
+                "I've finished researching the topic. Mark that todo as completed."
+            )
+        ]
+    },
+    config={"configurable": {"thread_id": "presentation-001"}},
+)
+# %%
+print(response2)
+# %%
+print("\n" + "=" * 60)
+print("STEP 2: Todo Marked as Completed")
+print("=" * 60)
+print(response2["messages"][-1].content)
+print("\nUpdated Todos:", response2["todos"])
+
+# %%
+# Display the status changes
+print("\n" + "=" * 60)
+print("FINAL TODO STATUS")
+print("=" * 60)
+for i, todo in enumerate(response2["todos"], 1):
+    status_emoji = "✅" if todo["status"] == "completed" else "⏳"
+    print(f"{status_emoji} Todo {i}: {todo['content']} - Status: {todo['status']}")
+
+# %%
