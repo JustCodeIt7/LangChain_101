@@ -72,29 +72,31 @@ response = agent.invoke(
     {
         "messages": [
             HumanMessage(
-                "Create a todo list for preparing a presentation: research topic, create slides, and practice delivery. save the todo list to todo.md"
+                "Create a todo list for preparing a presentation: research topic, create slides, and practice delivery."
             )
         ]
     },
     config={"configurable": {"thread_id": "presentation-001"}},
 )
+
 # %%
 print(response)
-
+print("\nTodos:", response["todos"])
 # %%
-
-# Markdown Research Topic as completed in the to-do list.
-response2 = agent.invoke(
-    {
-        "messages": [
-            HumanMessage(
-                "Markdown Research the presentation topic as completed in the to-do list."
-            )
-        ]
-    },
-    config={"configurable": {"thread_id": "presentation-001"}},
-)
-# %%
-print(response2)
-
+# loop through todos and have the llm complete the first one
+for i, todo in enumerate(response["todos"]):
+    if todo["status"] == "pending":
+        task_message = f"Complete the following task from the todo list: {todo['content']}"
+        result = agent.invoke(
+            {
+                "messages": [HumanMessage(task_message)]
+            },
+            config={"configurable": {"thread_id": "presentation-001"}},
+        )
+        print("\n" + "=" * 60)
+        print(f"STEP {i+1}: Completing Todo")
+        print(f"Completed Task: {todo['content']}")
+        print("=" * 60)
+        print(result["messages"][-1].content)
+    
 # %%

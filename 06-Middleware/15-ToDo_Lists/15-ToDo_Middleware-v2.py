@@ -54,9 +54,8 @@ print(response["todos"])
 # Access specific metadata from the first generated task
 print(response["todos"][0]["content"])
 print(response["todos"][0]["status"])
+
 # %%
-
-
 ################################ Example 2: Completing Todos ################################
 
 # Initialize a new agent for the completion workflow
@@ -115,4 +114,44 @@ for i, todo in enumerate(response2["todos"], 1):
     status_emoji = "✅" if todo["status"] == "completed" else "⏳"
     print(f"{status_emoji} Todo {i}: {todo['content']} - Status: {todo['status']}")
 
+# %%
+from langchain.agents import create_agent
+from langchain.agents.middleware import TodoListMiddleware
+from langchain_core.tools import tool
+
+@tool
+def analyze_code(file_path: str) -> str:
+    """Analyze code quality and find issues."""
+    return f"Analyzed {file_path}: Found 3 code smells, 2 security issues"
+
+@tool
+def refactor_code(file_path: str, changes: str) -> str:
+    """Refactor code with specified changes."""
+    return f"Refactored {file_path}: {changes}"
+
+agent = create_agent(
+    model="openai:gpt-4o",
+    tools=[analyze_code, refactor_code],
+    middleware=[TodoListMiddleware()]
+)
+
+
+# %%
+from langchain_core.messages import HumanMessage
+
+response = agent.invoke({
+    "messages": [HumanMessage("I need to refactor my authentication module. First analyze it, then suggest improvements, and finally implement the changes.")]
+})
+
+# %%
+# Access the structured todo list from the response
+if "todos" in response:
+    print("Agent's Task Plan:")
+    for i, todo in enumerate(response["todos"], 1):
+        status = todo.get("status", "pending")
+        print(f"{i}. [{status}] {todo['content']}")
+
+# %%
+
+print(response)
 # %%
