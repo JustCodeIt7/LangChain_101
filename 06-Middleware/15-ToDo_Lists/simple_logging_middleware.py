@@ -1,39 +1,62 @@
+import os
+import subprocess
+import tempfile
 
-# 1. Logging Middleware Example
+from langchain.agents import create_agent
+from langchain.agents.middleware import TodoListMiddleware
+from langchain_core.tools import tool
 
-from langchain_core.runnables import Runnable
-from langchain_core.runnables.utils import Input, Output
-from typing import Any
 
-class LoggingMiddleware:
-    def __init__(self, runnable: Runnable):
-        self.runnable = runnable
+@tool(parse_docstring=True)
+def create_file(filename: str, content: str) -> str:
+    """Create a new file with the given content.
 
-    def __call__(self, *args, **kwargs):
-        print("--- Request ---")
-        print(f"Input: {args[0]}")
-        
-        result = self.runnable.invoke(*args, **kwargs)
-        
-        print("--- Response ---")
-        print(f"Output: {result}")
-        
-        return result
+    Args:
+        filename: Name of the file to create.
+        content: Content to write to the file.
 
-# Example Usage
-if __name__ == "__main__":
-    from langchain_core.prompts import ChatPromptTemplate
-    from langchain_openai import ChatOpenAI
-    from langchain_core.output_parsers import StrOutputParser
+    Returns:
+        Confirmation message.
+    """
+    # Create in a temp directory for demo purposes
+    temp_dir = tempfile.gettempdir()
+    file_path = os.path.join(temp_dir, filename)
+    with open(file_path, "w") as f:
+        f.write(content)
+    return f"Created {file_path} successfully"
 
-    # Simple chain to greet someone
-    prompt = ChatPromptTemplate.from_template("Say hi to {name}")
-    model = ChatOpenAI()
-    parser = StrOutputParser()
-    chain = prompt | model | parser
 
-    # Wrap the chain with the logging middleware
-    logging_chain = LoggingMiddleware(chain)
+@tool(parse_docstring=True)
+def run_command(command: str) -> str:
+    """Run a shell command and return the output.
 
-    # Invoke the chain
-    logging_chain.invoke({"name": "Jim"})
+    Args:
+        command: Shell command to execute.
+
+    Returns:
+        Command output.
+    """
+    try:
+        result = subprocess.run(
+            command,
+            shell=True,  # noqa: S602
+            capture_output=True,
+            text=True,
+            timeout=10,
+            cwd=tempfile.gettempdir(),
+        )
+        if result.returncode == 0:
+            return f"Command succeeded:\n{result.stdout}"
+        return f"Command failed (exit code {result.returncode}):\n{result.stderr}"
+    except subprocess.TimeoutExpired:
+        return "Command timed out after 10 seconds"
+    except Exception as e:
+        return f"Error running command: {e}"
+
+
+agent = create_agent(
+    model="openai:gpt-4o",
+    tools=[create_file, run_command],
+    system_prompt="You are a software development assistant.",
+    middleware=[TodoListMiddleware()],
+)
