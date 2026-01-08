@@ -1,4 +1,5 @@
-# %%
+#%%
+
 import os
 import subprocess
 import tempfile
@@ -8,8 +9,8 @@ from langchain.agents.middleware import TodoListMiddleware
 from langchain_core.tools import tool
 from rich import print
 from langchain.messages import HumanMessage, SystemMessage
-# %%
 
+# %% ############################ Tool Definitions #############################
 
 @tool(parse_docstring=True)
 def create_file(filename: str, content: str) -> str:
@@ -25,6 +26,7 @@ def create_file(filename: str, content: str) -> str:
     # Create in a temp directory for demo purposes
     temp_dir = os.getcwd()
     file_path = os.path.join(temp_dir, filename)
+    # Ensure file persistence in the current working directory
     with open(file_path, "w") as f:
         f.write(content)
     return f"Created {file_path} successfully"
@@ -40,13 +42,14 @@ def run_command(command: str) -> str:
     Returns:
         Command output.
     """
+    # Execute system commands safely with timeout constraints
     try:
         result = subprocess.run(
             command,
             shell=True,  # noqa: S602
             capture_output=True,
             text=True,
-            timeout=10,
+            timeout=10, # Prevent long-running processes from hanging the agent
             cwd=os.getcwd(),
         )
         if result.returncode == 0:
@@ -58,16 +61,17 @@ def run_command(command: str) -> str:
         return f"Error running command: {e}"
 
 
-# %%
+# %% ################################ Agent Configuration #######################
 
+# Initialize the agent with specialized middleware for state management
 agent = create_agent(
     model="openai:gpt-4.1-nano",
     tools=[create_file, run_command],
     system_prompt="You are a software development assistant.",
-    middleware=[TodoListMiddleware()],
+    middleware=[TodoListMiddleware()], # Enable automatic todo list tracking
 )
 
-
+# Start a new conversation thread to generate the initial task list
 response = agent.invoke(
     {
         "messages": [
@@ -76,27 +80,35 @@ response = agent.invoke(
             )
         ]
     },
-    config={"configurable": {"thread_id": "presentation-001"}},
+    config={"configurable": {"thread_id": "presentation-001"}}, # Use thread_id for state persistence
 )
 
-# %%
+# %% ################################ Output Results ################################
+
 print(response)
 print("\nTodos:", response["todos"])
-# %%
+
+# %% ################################ Task Execution Loop #########################
+
 # loop through todos and have the llm complete the first one
 for i, todo in enumerate(response["todos"]):
+    # Process only unfinished tasks
     if todo["status"] == "pending":
         task_message = f"Complete the following task from the todo list: {todo['content']}"
+        
+        # Request the agent to execute the specific sub-task
         result = agent.invoke(
             {
                 "messages": [HumanMessage(task_message)]
             },
-            config={"configurable": {"thread_id": "presentation-001"}},
+            config={"configurable": {"thread_id": "presentation-001"}}, # Maintain context within the same thread
         )
+        
+        # Display progress and the agent's work for each step
         print("\n" + "=" * 60)
         print(f"STEP {i+1}: Completing Todo")
         print(f"Completed Task: {todo['content']}")
         print("=" * 60)
-        print(result["messages"][-1].content)
+        print(result["messages"][-1].content) # Print the final response from the agent logic
     
 # %%
