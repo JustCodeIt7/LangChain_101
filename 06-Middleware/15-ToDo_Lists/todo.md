@@ -1,3 +1,3 @@
-# Research the presentation topic
-
-- [x] Completed research on the presentation topic.
+- Research the topic for the presentation.
+- Create slides for the presentation.
+- Practice delivering the presentation.

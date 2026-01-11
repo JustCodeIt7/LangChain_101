@@ -1,5 +1,4 @@
 #%%
-
 import os
 import subprocess
 import tempfile
@@ -76,7 +75,7 @@ response = agent.invoke(
     {
         "messages": [
             HumanMessage(
-                "Create a todo list for preparing a presentation: research topic, create slides, and practice delivery."
+                "Create a todo list for preparing a presentation: research topic, create slides, and practice delivery. save to todo.md"
             )
         ]
     },
@@ -88,9 +87,9 @@ response = agent.invoke(
 print(response)
 print("\nTodos:", response["todos"])
 
-# %% ################################ Task Execution Loop #########################
+# %% ########################## Task Execution Loop #########################
 
-# loop through todos and have the llm complete the first one
+# loop through todos and have the llm complete
 for i, todo in enumerate(response["todos"]):
     # Process only unfinished tasks
     if todo["status"] == "pending":
