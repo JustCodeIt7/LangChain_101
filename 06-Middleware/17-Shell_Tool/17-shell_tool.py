@@ -39,6 +39,43 @@ def search_tool(query: str) -> str:
 
 # Basic shell tool with host execution
 # Configure the agent to interact with the local filesystem directly
+
+# ShellToolMiddleware Parameters:
+# workspace_root (str | Path | None):
+#   Base directory for the shell session. If omitted, a temporary directory is 
+#   created when the agent starts and removed when it ends.
+#
+# startup_commands (tuple[str, ...] | list[str] | str | None):
+#   Optional commands executed sequentially after the session starts
+#
+# shutdown_commands (tuple[str, ...] | list[str] | str | None):
+#   Optional commands executed before the session shuts down
+#
+# execution_policy (BaseExecutionPolicy | None):
+#   Execution policy controlling timeouts, output limits, and resource configuration. Options:
+#   - HostExecutionPolicy: Full host access (default); best for trusted environments 
+#     where the agent already runs inside a container or VM
+#   - DockerExecutionPolicy: Launches a separate Docker container for each agent run, 
+#     providing harder isolation
+#   - CodexSandboxExecutionPolicy: Reuses the Codex CLI sandbox for additional 
+#     syscall/filesystem restrictions
+#
+# redaction_rules (tuple[RedactionRule, ...] | list[RedactionRule] | None):
+#   Optional redaction rules to sanitize command output before returning it to the model.
+#   Redaction rules are applied post execution and do not prevent exfiltration of secrets 
+#   or sensitive data when using HostExecutionPolicy.
+#
+# tool_description (str | None):
+#   Optional override for the registered shell tool description
+#
+# shell_command (Sequence[str] | str | None):
+#   Optional shell executable (string) or argument sequence used to launch the persistent 
+#   session. Defaults to /bin/bash.
+#
+# env (Mapping[str, Any] | None):
+#   Optional environment variables to supply to the shell session. Values are coerced 
+#   to strings before command execution.
+
 agent = create_agent(
     model=llm,
     tools=[search_tool],
@@ -59,7 +96,13 @@ print(result)
 # %%
 # Output the final response message content
 print(result['messages'][-1].content)
-
+#%%
+# Note: Complex multi-line file creation can cause JSON parsing errors with local LLMs
+# Better to use simpler commands or create files separately
+result = agent.invoke({
+    "messages": [HumanMessage("Create a file called hello.txt with the text 'Hello World'")],
+})
+print(result['messages'][-1].content)
 #%%
 ################### Docker-Isolated Shell Agent ##################
 

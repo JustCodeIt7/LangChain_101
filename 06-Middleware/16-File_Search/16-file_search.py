@@ -103,7 +103,6 @@ print(result['messages'][-1].content)
 
 # %% 
 ################# Demo Results #######################
-
 # Display initial file listing results
 print(result)
 # %%
