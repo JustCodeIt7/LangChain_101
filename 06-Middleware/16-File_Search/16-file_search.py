@@ -15,7 +15,6 @@ os.chdir(os.path.dirname(os.path.abspath(__file__)))
 load_dotenv()
 
 OLLAMA_BASE_URL = os.getenv('OLLAMA_BASE_URL', 'http://localhost:11434')
-print(f"OLLAMA_BASE_URL: {OLLAMA_BASE_URL}")
 llm = ChatOllama(model='gpt-oss:20b', base_url=OLLAMA_BASE_URL)
 
 #%% ############# File Search Middleware Agent #########################
