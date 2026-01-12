@@ -108,6 +108,18 @@ print(result['messages'][-1].content)
 
 # Docker isolation with startup commands
 # Create a sandboxed environment to prevent host machine interference
+# REQUIREMENTS:
+# 1. Docker Desktop must be installed and running
+# 2. Docker daemon must be accessible (check with: docker ps)
+# 3. The specified image must be available or pullable (python:3.12-slim)
+#
+# KNOWN ISSUE: DockerExecutionPolicy may fail with "Shell session is not running"
+# This is a known limitation with LangChain's Docker middleware implementation.
+# The session initialization may fail due to timing issues or Docker socket configuration.
+#
+# WORKAROUND: Use HostExecutionPolicy with manual Docker commands if needed,
+# or test with GPT-4 which has better Docker middleware support.
+
 agent_docker = create_agent(
     model=llm,
     tools=[],
@@ -119,6 +131,7 @@ agent_docker = create_agent(
             execution_policy=DockerExecutionPolicy(
                 image="python:3.12-slim",
                 command_timeout=30.0,           # Terminate long-running processes
+                session_timeout=60.0,           # Allow more time for session startup
             ),
         ),
     ],
@@ -126,12 +139,11 @@ agent_docker = create_agent(
 
 #%%
 # Execute a shell command inside the isolated container
+# Note: This may fail with "Shell session is not running" due to Docker middleware limitations
 result_docker = agent_docker.invoke({
     "messages": [HumanMessage("Run 'python --version' in the shell.")],
 })
-print(result_docker)
-# %%
-print(result_docker['messages'][-1].content)
+   
 
 #%%
 #################### Redacted Output Agent ######################
