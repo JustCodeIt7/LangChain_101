@@ -96,9 +96,7 @@ secure_agent = create_agent(
             workspace_root=restricted_dir,
             startup_commands=["echo 'Secure Session Initialized'", "touch session.log"],
             redaction_rules=[
-                RedactionRule(
-                    pattern=r"API_KEY=[\w-]+", replacement="API_KEY=[REDACTED]"
-                )
+                RedactionRule(pii_type="custom_api_key", detector=r"API_KEY=[\w-]+")
             ],
             env={"MODE": "secure", "API_KEY": "sk-secret-12345"},
             execution_policy=HostExecutionPolicy(),
