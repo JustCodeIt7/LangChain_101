@@ -1,89 +1,78 @@
 # %%
-####################### Environment Setup #######################
+# MASTERING SHELL TOOL MIDDLEWARE - TUTORIAL CODE
+#####################################################################
+# This script demonstrates 3 key configurations for ShellToolMiddleware:
+# 1. Basic Host Access
+# 2. Secure/Restricted Environment (Redaction & Env Vars)
+# 3. Custom Maintenance Shell (Zsh & Cleanup)
 
-from langchain.agents import create_agent
-from langchain.messages import HumanMessage
+import os
 from dotenv import load_dotenv
 from rich import print
-import os
-import subprocess
-from langchain_ollama import ChatOllama, OllamaEmbeddings
+from langchain.agents import create_agent
+from langchain.messages import HumanMessage
+from langchain_ollama import ChatOllama
 from langchain.agents.middleware import (
     ShellToolMiddleware,
     HostExecutionPolicy,
-    DockerExecutionPolicy,
     RedactionRule,
-    CodexSandboxExecutionPolicy,
 )
-from langchain.tools import tool
 
-# set current working directory
+# 1. Setup Environment
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
-
-# Load environment variables from .env file
 load_dotenv()
 
-# Initialize the local LLM via Ollama
-OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-llm = ChatOllama(model="gpt-oss:20b", base_url=OLLAMA_BASE_URL)
+# Initialize Local LLM
+llm = ChatOllama(
+    model="gpt-oss:20b",
+    base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
+)
 
 # %%
-######################## Custom Tooling #########################
+# EXAMPLE 1: BASIC HOST SHELL AGENT
+#####################################################################
+# The simplest configuration. Grants the agent access to the host
+# system to run commands.
 
+print("--- 1. Running Basic Host Agent ---")
 
-@tool
-def search_tool(query: str) -> str:
-    """Search the web for information."""
-    return f"Search results for: {query}"
-
-
-# %%
-#################### Host-Based Shell Agent #####################
-
-agent = create_agent(
+basic_agent = create_agent(
     model=llm,
-    tools=[search_tool],
+    tools=[],  # We can add other tools here if needed
     middleware=[
         ShellToolMiddleware(
+            # workspace_root: Directory where the shell session starts
             workspace_root="./",
-            execution_policy=HostExecutionPolicy(),  # Execute commands on the host OS
+            # execution_policy: Controls HOW commands are run (Host vs Docker)
+            execution_policy=HostExecutionPolicy(),
         ),
     ],
 )
 
-# %%
-# Request a directory listing followed by a simulated web search
-result = agent.invoke(
+result_1 = basic_agent.invoke(
     {
         "messages": [
             HumanMessage(
-                "Run 'ls -la' in the shell and search for the contents of the directory."
+                "Create a file 'hello.txt' with text 'Hello World', then list files."
             )
-        ],
+        ]
     }
 )
-print(result)
-# %%
-# Output the final response message content
-print(result["messages"][-1].content)
-# %%
-# Note: Complex multi-line file creation can cause JSON parsing errors with local LLMs
-# Better to use simpler commands or create files separately
-result = agent.invoke(
-    {
-        "messages": [
-            HumanMessage("Create a file called hello.txt with the text 'Hello World'")
-        ],
-    }
-)
-print(result["messages"][-1].content)
+print(result_1)
+print(result_1["messages"][-1].content)
 
 
 # %%
-################### Secure Environment Agent ####################
-# This example demonstrates: workspace_root, startup_commands, redaction_rules, env
+# EXAMPLE 2: SECURE / RESTRICTED AGENT
+#####################################################################
+# Demonstrates how to:
+# - Set environment variables
+# - Run startup commands
+# - Redact sensitive information (PII)
 
-# Ensure the restricted directory exists for the example
+print("\n--- 2. Running Secure Agent ---")
+
+# Create a restricted directory for this example
 restricted_dir = "./restricted_data"
 if not os.path.exists(restricted_dir):
     os.makedirs(restricted_dir)
@@ -94,48 +83,59 @@ secure_agent = create_agent(
     middleware=[
         ShellToolMiddleware(
             workspace_root=restricted_dir,
-            startup_commands=["echo 'Secure Session Initialized'", "touch session.log"],
+            # env: Inject secrets or config into the shell session
+            env={"MODE": "restricted", "API_KEY": "sk-secret-12345"},
+            # startup_commands: Run these immediately when the session starts
+            startup_commands=["echo 'Secure Session Started'", "touch session.lock"],
+            # redaction_rules: Regex patterns to hide sensitive output
             redaction_rules=[
                 RedactionRule(pii_type="custom_api_key", detector=r"API_KEY=[\w-]+")
             ],
-            env={"MODE": "secure", "API_KEY": "sk-secret-12345"},
             execution_policy=HostExecutionPolicy(),
         ),
     ],
 )
 
-secure_result = secure_agent.invoke(
-    {
-        "messages": [
-            HumanMessage("Print the API_KEY environment variable and list files.")
-        ]
-    }
+result_2 = secure_agent.invoke(
+    {"messages": [HumanMessage("Check the API_KEY env var and list files.")]}
 )
-print("\n--- Secure Agent Output ---")
-print(secure_result["messages"][-1].content)
+print(result_2)
+print(result_2["messages"][-1].content)
 
 
 # %%
-################ Custom Maintenance Shell Agent #################
-# This example demonstrates: tool_description, shell_command, shutdown_commands
+# EXAMPLE 3: CUSTOM MAINTENANCE SHELL
+#####################################################################
+# Demonstrates how to:
+# - Use a specific shell (zsh vs bash)
+# - Provide a custom tool description for the LLM
+# - Run shutdown commands for cleanup
+
+print("\n--- 3. Running Maintenance Agent ---")
 
 maintenance_agent = create_agent(
     model=llm,
     tools=[],
     middleware=[
         ShellToolMiddleware(
-            tool_description="System maintenance shell. Use for cleanup and system checks.",
-            shell_command="/bin/zsh",  # Explicitly use zsh
-            shutdown_commands=["rm -rf ./temp_logs", "echo 'Cleanup Complete'"],
+            # tool_description: Helps the LLM understand when/how to use this shell
+            tool_description="System maintenance shell for cleanup and updates.",
+            # shell_command: Explicitly use zsh (or any other shell executable)
+            shell_command="/bin/zsh",
+            # shutdown_commands: Run these when the agent session closes
+            shutdown_commands=[
+                "rm -rf ./temp_logs",
+                "echo 'Cleanup Complete'",
+            ],
             execution_policy=HostExecutionPolicy(),
         ),
     ],
 )
 
-maintenance_result = maintenance_agent.invoke(
-    {"messages": [HumanMessage("Check the current shell version and disk usage.")]}
+result_3 = maintenance_agent.invoke(
+    {"messages": [HumanMessage("Check shell version and disk usage.")]}
 )
-print("\n--- Maintenance Agent Output ---")
-print(maintenance_result["messages"][-1].content)
+print(result_3)
+print(result_3["messages"][-1].content)
 
 # %%
