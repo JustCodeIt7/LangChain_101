@@ -6,6 +6,7 @@ from langchain.messages import HumanMessage
 from dotenv import load_dotenv
 from rich import print
 import os
+import subprocess
 from langchain_ollama import ChatOllama, OllamaEmbeddings
 from langchain.agents.middleware import (
     ShellToolMiddleware,
@@ -120,31 +121,52 @@ print(result['messages'][-1].content)
 # WORKAROUND: Use HostExecutionPolicy with manual Docker commands if needed,
 # or test with GPT-4 which has better Docker middleware support.
 
-agent_docker = create_agent(
-    model=llm,
-    tools=[],
-    middleware=[
-        ShellToolMiddleware(
-            workspace_root="./",
-            # Prepare the container environment before execution
-            # startup_commands=["pip install requests", "export PYTHONPATH=./"],
-            execution_policy=DockerExecutionPolicy(
-                image="python:3.12-slim",
-                command_timeout=30.0,           # Terminate long-running processes
-                session_timeout=60.0,           # Allow more time for session startup
+def _docker_accessible() -> bool:
+    """Return True if the Docker CLI is available and the daemon is reachable."""
+    try:
+        proc = subprocess.run(
+            ["docker", "info"],
+            check=False,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=5,
+        )
+    except (FileNotFoundError, subprocess.SubprocessError, PermissionError):
+        return False
+    return proc.returncode == 0
+
+
+if _docker_accessible():
+    agent_docker = create_agent(
+        model=llm,
+        tools=[],
+        middleware=[
+            ShellToolMiddleware(
+                workspace_root="./",
+                # Prepare the container environment before execution
+                # startup_commands=["pip install requests", "export PYTHONPATH=./"],
+                execution_policy=DockerExecutionPolicy(
+                    image="python:3.12-slim",
+                    command_timeout=30.0,           # Terminate long-running processes
+                    session_timeout=60.0,           # Allow more time for session startup
+                ),
             ),
-        ),
-    ],
-)
+        ],
+    )
 
-#%%
-# Execute a shell command inside the isolated container
-# Note: This may fail with "Shell session is not running" due to Docker middleware limitations
-result_docker = agent_docker.invoke({
-    "messages": [HumanMessage("Run 'python --version' in the shell.")],
-})
+    # Execute a shell command inside the isolated container
+    # Note: This may fail with "Shell session is not running" due to Docker middleware limitations
+    try:
+        result_docker = agent_docker.invoke({
+            "messages": [HumanMessage("Run 'python --version' in the shell.")],
+        })
+        print(result_docker)
+    except RuntimeError as exc:
+        print(f"[yellow]Skipping Docker example; shell session failed to start: {exc}[/yellow]")
+else:
+    print("[yellow]Skipping Docker example because Docker is not available or the daemon is not reachable.[/yellow]")
    
-
+   
 #%%
 #################### Redacted Output Agent ######################
 
@@ -180,9 +202,10 @@ print(result_redacted['messages'][-1].content)
 # Leverage OpenAI Codex to safely execute shell commands in a simulated environment
 agent_codex = create_agent(
     model='gpt-4o',
+    tools=[],
     middleware=[
         ShellToolMiddleware(
-            workspace_root="./",
+            workspace_root="/Users/james/Library/CloudStorage/Dropbox/GitHub/YouTube/LangChain_101/06-Middleware/17-Shell_Tool",
             execution_policy=CodexSandboxExecutionPolicy(
                 platform="macos",  # Specify the target OS environment
             ),
@@ -197,4 +220,25 @@ result_codex = agent_codex.invoke({
 print(result_codex)
 # %%
 print(result_codex['messages'][-1].content)
+# %%
+# Docker isolation with startup commands
+agent_docker = create_agent(
+    model="gpt-4.1",
+    tools=[],
+    middleware=[
+        ShellToolMiddleware(
+            workspace_root="./",
+            startup_commands=["pip install requests", "export PYTHONPATH=./"],
+            execution_policy=DockerExecutionPolicy(
+                image="python:3.11-slim",
+                command_timeout=60.0,
+            ),
+        ),
+    ],
+)
+# %%
+agent_docker.invoke({
+    "messages": [HumanMessage("Run 'python --version' in the shell.")],
+})
+
 # %%
