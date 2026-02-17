@@ -77,3 +77,67 @@ result = agent.invoke(
     }
 )
 print(result["messages"][-1].content)
+
+
+# %%
+################### Secure Environment Agent ####################
+# This example demonstrates: workspace_root, startup_commands, redaction_rules, env
+
+# Ensure the restricted directory exists for the example
+restricted_dir = "./restricted_data"
+if not os.path.exists(restricted_dir):
+    os.makedirs(restricted_dir)
+
+secure_agent = create_agent(
+    model=llm,
+    tools=[],
+    middleware=[
+        ShellToolMiddleware(
+            workspace_root=restricted_dir,
+            startup_commands=["echo 'Secure Session Initialized'", "touch session.log"],
+            redaction_rules=[
+                RedactionRule(
+                    pattern=r"API_KEY=[\w-]+", replacement="API_KEY=[REDACTED]"
+                )
+            ],
+            env={"MODE": "secure", "API_KEY": "sk-secret-12345"},
+            execution_policy=HostExecutionPolicy(),
+        ),
+    ],
+)
+
+secure_result = secure_agent.invoke(
+    {
+        "messages": [
+            HumanMessage("Print the API_KEY environment variable and list files.")
+        ]
+    }
+)
+print("\n--- Secure Agent Output ---")
+print(secure_result["messages"][-1].content)
+
+
+# %%
+################ Custom Maintenance Shell Agent #################
+# This example demonstrates: tool_description, shell_command, shutdown_commands
+
+maintenance_agent = create_agent(
+    model=llm,
+    tools=[],
+    middleware=[
+        ShellToolMiddleware(
+            tool_description="System maintenance shell. Use for cleanup and system checks.",
+            shell_command="/bin/zsh",  # Explicitly use zsh
+            shutdown_commands=["rm -rf ./temp_logs", "echo 'Cleanup Complete'"],
+            execution_policy=HostExecutionPolicy(),
+        ),
+    ],
+)
+
+maintenance_result = maintenance_agent.invoke(
+    {"messages": [HumanMessage("Check the current shell version and disk usage.")]}
+)
+print("\n--- Maintenance Agent Output ---")
+print(maintenance_result["messages"][-1].content)
+
+# %%
