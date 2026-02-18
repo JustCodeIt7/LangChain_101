@@ -1,6 +1,7 @@
+""" 
+"""
 # %%
-# MASTERING SHELL TOOL MIDDLEWARE - TUTORIAL CODE
-#####################################################################
+# ----------------- MASTERING SHELL TOOL MIDDLEWARE - TUTORIAL CODE -----------------
 # This script demonstrates 3 key configurations for ShellToolMiddleware:
 # 1. Basic Host Access
 # 2. Secure/Restricted Environment (Redaction & Env Vars)
@@ -29,10 +30,8 @@ llm = ChatOllama(
 )
 
 # %%
-# EXAMPLE 1: BASIC HOST SHELL AGENT
-#####################################################################
-# The simplest configuration. Grants the agent access to the host
-# system to run commands.
+# ---------------- EXAMPLE 1: BASIC HOST SHELL AGENT -----------------
+# The simplest configuration. Grants the agent access to the host system to run commands.
 
 print("--- 1. Running Basic Host Agent ---")
 
@@ -49,6 +48,8 @@ basic_agent = create_agent(
     ],
 )
 
+# %%
+# The agent will create a file and list the directory contents
 result_1 = basic_agent.invoke(
     {
         "messages": [
@@ -58,13 +59,13 @@ result_1 = basic_agent.invoke(
         ]
     }
 )
+
 print(result_1)
 print(result_1["messages"][-1].content)
 
 
 # %%
-# EXAMPLE 2: SECURE / RESTRICTED AGENT
-#####################################################################
+# ---------------- EXAMPLE 2: SECURE / RESTRICTED AGENT -----------------
 # Demonstrates how to:
 # - Set environment variables
 # - Run startup commands
@@ -77,6 +78,7 @@ restricted_dir = "./restricted_data"
 if not os.path.exists(restricted_dir):
     os.makedirs(restricted_dir)
 
+# In a secure agent, we can set environment variables, run startup commands, and define redaction rules to protect sensitive information.
 secure_agent = create_agent(
     model=llm,
     tools=[],
@@ -96,6 +98,7 @@ secure_agent = create_agent(
     ],
 )
 
+# %%
 result_2 = secure_agent.invoke(
     {"messages": [HumanMessage("Check the API_KEY env var and list files.")]}
 )
@@ -104,15 +107,14 @@ print(result_2["messages"][-1].content)
 
 
 # %%
-# EXAMPLE 3: CUSTOM MAINTENANCE SHELL
-#####################################################################
+# ----------------- EXAMPLE 3: CUSTOM MAINTENANCE SHELL -----------------
 # Demonstrates how to:
 # - Use a specific shell (zsh vs bash)
 # - Provide a custom tool description for the LLM
 # - Run shutdown commands for cleanup
 
 print("\n--- 3. Running Maintenance Agent ---")
-
+# This agent is designed for system maintenance tasks. It uses zsh and has specific cleanup commands that run when the session ends.
 maintenance_agent = create_agent(
     model=llm,
     tools=[],
@@ -131,7 +133,7 @@ maintenance_agent = create_agent(
         ),
     ],
 )
-
+# %%
 result_3 = maintenance_agent.invoke(
     {"messages": [HumanMessage("Check shell version and disk usage.")]}
 )
